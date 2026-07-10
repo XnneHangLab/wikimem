@@ -119,8 +119,10 @@ Retrieval makes zero LLM calls and never persists the BM25 index — delete
 nothing, lose nothing. Install `wikimem[zh]` for jieba-based Chinese
 tokenization (default is character bigrams).
 
-Optional semantic fusion (`pip install wikimem[embed]`) — BM25 catches the
-wording, cosine catches the meaning, min-max fused:
+Optional semantic fusion (`pip install wikimem[embed]`) — **BM25 is never
+disabled**: with an embedder, every query runs both signals and fuses them
+(each min-max normalized — the same hybrid formula memU ADR-0007 converged
+on). BM25 catches the wording, cosine catches the meaning:
 
 ```python
 from wikimem.vectors import HttpEmbedder
