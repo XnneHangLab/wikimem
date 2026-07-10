@@ -35,28 +35,34 @@
 Pre-alpha，按里程碑逐步构建
 （设计文档：XnneHangLab ADR-0001 —— 记忆管线）：
 
-- **M1（当前）** —— 存储层：分类文件、条目模型 + 元数据、
+- M1 ✅ —— 存储层：分类文件、条目模型 + 元数据、
   wiki-link 解析、`journal.jsonl`、原子写入
-- M2 —— 检索：内存 BM25（字符 n-gram 兜底，`[zh]` extra 提供 jieba 分词）、
-  wiki-link 展开、token 预算、`explain`
+- **M2（当前）** —— 检索：内存 BM25（字符 bigram 兜底，`[zh]` extra 提供
+  jieba 分词）、一跳 wiki-link 展开、token 预算、explain
 - M3 —— 可选 embedding 融合（`[embed]` extra）：memmap 向量、
   1 万条以上二值量化、可插拔 `VectorIndex` 端口
 - M4 —— CLI：`ls / show / grep / explain / graph`
 
-## 快速上手（M1 接口）
+## 快速上手
 
 ```python
-from wikimem import MemoryStore
+from wikimem import MemoryIndex, MemoryStore
 
 store = MemoryStore("memory/")
 store.add("preferences", "likes-the-sea",
           "喜欢海边，提到过想去海边玩。[[daily_life:beach-trip-plan]]",
           owner="user:xnne", source_conv="conv_20260710")
+store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日出。")
 
-item = store.get("preferences", "likes-the-sea")
-print(item.links)          # [WikiLink(category='daily_life', name='beach-trip-plan')]
-print(store.categories())  # ['preferences']
+index = MemoryIndex(store)  # 内存 BM25，store 写入后自动重建
+result = index.retrieve("想去海边玩", budget_tokens=800)
+for entry in result.items:
+    # 命中条目按分数排序；每个命中后面跟着它一跳展开的 wiki-link 目标
+    print(entry.source, entry.item.name, entry.score, entry.matched_terms)
 ```
+
+检索 0 次 LLM 调用，索引永不落盘 —— 没有可丢的东西。安装 `wikimem[zh]`
+获得 jieba 中文分词（默认为字符 bigram）。
 
 ## 参与开发
 
