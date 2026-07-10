@@ -20,10 +20,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 # Hard constraint (lab ADR-0001): the core has ZERO mandatory dependencies.
-# Chinese tokenization and embedding fusion arrive later as extras:
-#   [zh]    -> jieba          (M2)
-#   [embed] -> httpx + numpy  (M3)
+# Embedding fusion arrives with M3 as the [embed] extra (httpx + numpy).
 dependencies = []
+
+[project.optional-dependencies]
+zh = ["jieba>=0.42"]
 
 [project.urls]
 Homepage = "https://github.com/XnneHangLab/wikimem"

@@ -38,28 +38,35 @@ no graph database.
 Pre-alpha, built milestone by milestone
 (design: XnneHangLab ADR-0001 — memory pipeline):
 
-- **M1 (this)** — storage layer: category files, item model + metadata,
+- M1 ✅ — storage layer: category files, item model + metadata,
   wiki-link parsing, `journal.jsonl`, atomic writes
-- M2 — retrieval: in-memory BM25 (char n-gram fallback, `[zh]` extra for jieba),
-  wiki-link expansion, token budget, `explain`
+- **M2 (this)** — retrieval: in-memory BM25 (char-bigram fallback, `[zh]` extra
+  for jieba), one-hop wiki-link expansion, token budget, explain
 - M3 — optional embedding fusion (`[embed]` extra): memmap vectors, binary
   quantization ≥10k items, pluggable `VectorIndex` port
 - M4 — CLI: `ls / show / grep / explain / graph`
 
-## Quick start (M1 surface)
+## Quick start
 
 ```python
-from wikimem import MemoryStore
+from wikimem import MemoryIndex, MemoryStore
 
 store = MemoryStore("memory/")
 store.add("preferences", "likes-the-sea",
           "喜欢海边，提到过想去海边玩。[[daily_life:beach-trip-plan]]",
           owner="user:xnne", source_conv="conv_20260710")
+store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日出。")
 
-item = store.get("preferences", "likes-the-sea")
-print(item.links)          # [WikiLink(category='daily_life', name='beach-trip-plan')]
-print(store.categories())  # ['preferences']
+index = MemoryIndex(store)  # in-memory BM25, rebuilds itself on store writes
+result = index.retrieve("想去海边玩", budget_tokens=800)
+for entry in result.items:
+    # hits come ranked; each is followed by its one-hop wiki-link targets
+    print(entry.source, entry.item.name, entry.score, entry.matched_terms)
 ```
+
+Retrieval makes zero LLM calls and never persists an index — delete nothing,
+lose nothing. Install `wikimem[zh]` for jieba-based Chinese tokenization
+(default is character bigrams).
 
 ## Development
 

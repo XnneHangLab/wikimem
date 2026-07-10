@@ -79,6 +79,14 @@ class MemoryStore:
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
         self.journal = Journal(self.root / _JOURNAL_FILENAME)
+        # Bumped on every successful in-process write; lets derived state
+        # (e.g. MemoryIndex) rebuild lazily. Out-of-band file edits are not
+        # detected — rebuild the index explicitly after those.
+        self._revision = 0
+
+    @property
+    def revision(self) -> int:
+        return self._revision
 
     # ---------------------------------------------------------------- reads
 
@@ -127,6 +135,7 @@ class MemoryStore:
         replaced = any(cur.name == item.name for cur in existing)
         merged = [cur for cur in existing if cur.name != item.name] + [item]
         self._write_category(category, merged)
+        self._revision += 1
         self.journal.append(
             "update" if replaced else "add",
             category=category,
@@ -144,6 +153,7 @@ class MemoryStore:
         if len(kept) == len(existing):
             return False
         self._write_category(category, kept)
+        self._revision += 1
         self.journal.append("remove", category=category, name=wanted, owner=owner)
         return True
 
