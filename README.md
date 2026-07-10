@@ -1,5 +1,9 @@
 # wikimem
 
+English | [简体中文](README.zh-CN.md)
+
+<!-- Keep in sync with README.zh-CN.md: update both when either changes -->
+
 File-first memory for AI agents: **categories + wiki-links over plain markdown**.
 No database, no embedding model, no docker — `pip install wikimem` and it works.
 
