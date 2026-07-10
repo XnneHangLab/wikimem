@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wikimem"
+version = "0.1.0.dev0"
+description = "File-first memory pipeline: categories + wiki-links over plain markdown. Zero infra required."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "XnneHangLab" }]
+keywords = ["memory", "agent", "markdown", "wiki-links", "bm25"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+# Hard constraint (lab ADR-0001): the core has ZERO mandatory dependencies.
+# Chinese tokenization and embedding fusion arrive later as extras:
+#   [zh]    -> jieba          (M2)
+#   [embed] -> httpx + numpy  (M3)
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/XnneHangLab/wikimem"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
