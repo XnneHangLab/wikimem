@@ -64,10 +64,11 @@ Pre-alpha，按里程碑逐步构建
 
 - M1 ✅ —— 存储层：分类文件、条目模型 + 元数据、
   wiki-link 解析、`journal.jsonl`、原子写入
-- **M2（当前）** —— 检索：内存 BM25（字符 bigram 兜底，`[zh]` extra 提供
+- M2 ✅ —— 检索：内存 BM25（字符 bigram 兜底，`[zh]` extra 提供
   jieba 分词）、一跳 wiki-link 展开、token 预算、explain
-- M3 —— 可选 embedding 融合（`[embed]` extra）：memmap 向量、
-  1 万条以上二值量化、可插拔 `VectorIndex` 端口
+- **M3（当前）** —— 可选 embedding 融合（`[embed]` extra）：内容哈希向量缓存
+  （版本化 `.npy` + 明文 keys）、memmap 分层（1 万条以上二值量化）、可插拔
+  `VectorIndex` 端口、端点不可用时静默回退纯 BM25
 - M4 —— CLI：`ls / show / grep / explain / graph`
 
 ## 快速上手
@@ -88,8 +89,24 @@ for entry in result.items:
     print(entry.source, entry.item.name, entry.score, entry.matched_terms)
 ```
 
-检索 0 次 LLM 调用，索引永不落盘 —— 没有可丢的东西。安装 `wikimem[zh]`
+检索 0 次 LLM 调用，BM25 索引永不落盘 —— 没有可丢的东西。安装 `wikimem[zh]`
 获得 jieba 中文分词（默认为字符 bigram）。
+
+可选语义融合（`pip install wikimem[embed]`）—— BM25 抓词面、余弦抓含义，
+min-max 归一后融合：
+
+```python
+from wikimem.vectors import HttpEmbedder
+
+embedder = HttpEmbedder("https://api.example.com/v1", "bge-m3", api_key="sk-…")
+index = MemoryIndex(store, embedder=embedder)
+result = index.retrieve("海滨度假")   # 与"喜欢海边"零词面重合也能召回
+print(result.embedding_used)          # False = 端点不可用，BM25 照常工作
+```
+
+向量存在 markdown 旁边的内容哈希缓存里（版本化 `vectors-*.npy` + 可读的
+`vectors.keys.jsonl`）—— 增量更新、随时可删、永远不是事实源。embedding
+端点不可达时检索静默降级为纯 BM25，绝不抛错。
 
 ## 参与开发
 
