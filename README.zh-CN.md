@@ -7,6 +7,23 @@
 面向 AI Agent 的文件优先记忆系统：**纯 markdown 之上的 categories + wiki-links**。
 不需要数据库、不需要 embedding 模型、不需要 docker —— `pip install wikimem` 即可使用。
 
+## 安装
+
+```bash
+pip install wikimem        # 默认安装 —— 开箱即用，功能完整
+pip install "wikimem[all]" # 不想纠结就装这个，可选增强全都带上
+```
+
+**没有"模式"这回事。** wikimem 只有一条管线。extras 只是解锁可选增强：
+装了就自动生效、彼此之间不冲突 —— 全装上也不会改变任何行为，直到你真正用到它。
+
+| 安装方式 | 增加什么 | 使用场景 |
+|---|---|---|
+| `wikimem` | 无 —— 零依赖 | 功能完整：存储、BM25 检索（中文用字符 bigram）、wiki-links、journal |
+| `wikimem[zh]` | jieba | 中文关键词召回比 bigram 更准 —— 装上即自动启用，无需任何配置 |
+| `wikimem[embed]` | httpx + numpy | 语义召回（按含义而不是词面匹配）—— 只有传入 `embedder` 才会启用；端点挂了自动回退 BM25 |
+| `wikimem[all]` | 以上全部 | "别让我做选择"选项 |
+
 ## 设计规则
 
 1. **markdown 文件是唯一事实源。** 每个分类一个文件（`memory/preferences.md`），

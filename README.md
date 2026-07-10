@@ -7,6 +7,24 @@ English | [简体中文](README.zh-CN.md)
 File-first memory for AI agents: **categories + wiki-links over plain markdown**.
 No database, no embedding model, no docker — `pip install wikimem` and it works.
 
+## Install
+
+```bash
+pip install wikimem        # the default — everything works out of the box
+pip install "wikimem[all]" # optional enhancements included, if you'd rather not choose
+```
+
+**There are no modes.** wikimem is one pipeline. Extras only unlock optional
+enhancements, they activate automatically, and they never conflict with each
+other — installing all of them changes nothing until you actually use them.
+
+| Install | Adds | Use case |
+|---|---|---|
+| `wikimem` | nothing — zero dependencies | Always fully works: storage, BM25 retrieval (Chinese via char-bigrams), wiki-links, journal |
+| `wikimem[zh]` | jieba | Sharper Chinese keyword recall than bigrams — picked up automatically once installed, nothing to configure |
+| `wikimem[embed]` | httpx + numpy | Semantic recall (match by meaning, not wording) — only active when you pass an `embedder`; endpoint down → BM25 carries on |
+| `wikimem[all]` | both of the above | The "don't make me think" option |
+
 ## Design rules
 
 1. **Markdown files are the only source of truth.** One file per category

@@ -25,6 +25,7 @@ dependencies = []
 [project.optional-dependencies]
 zh = ["jieba>=0.42"]
 embed = ["httpx>=0.27", "numpy>=1.26"]
+all = ["jieba>=0.42", "httpx>=0.27", "numpy>=1.26"]
 
 [project.urls]
 Homepage = "https://github.com/XnneHangLab/wikimem"
