@@ -20,17 +20,19 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 # Hard constraint (lab ADR-0001): the core has ZERO mandatory dependencies.
-# Embedding fusion arrives with M3 as the [embed] extra (httpx + numpy).
 dependencies = []
 
 [project.optional-dependencies]
 zh = ["jieba>=0.42"]
+embed = ["httpx>=0.27", "numpy>=1.26"]
+all = ["jieba>=0.42", "httpx>=0.27", "numpy>=1.26"]
 
 [project.urls]
 Homepage = "https://github.com/XnneHangLab/wikimem"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+# dev includes the [embed] deps so the fusion path is tested locally and in CI.
+dev = ["pytest>=8", "httpx>=0.27", "numpy>=1.26"]
 
 [tool.ruff]
 line-length = 100

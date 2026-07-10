@@ -7,6 +7,24 @@ English | [简体中文](README.zh-CN.md)
 File-first memory for AI agents: **categories + wiki-links over plain markdown**.
 No database, no embedding model, no docker — `pip install wikimem` and it works.
 
+## Install
+
+```bash
+pip install wikimem        # the default — everything works out of the box
+pip install "wikimem[all]" # optional enhancements included, if you'd rather not choose
+```
+
+**There are no modes.** wikimem is one pipeline. Extras only unlock optional
+enhancements, they activate automatically, and they never conflict with each
+other — installing all of them changes nothing until you actually use them.
+
+| Install | Adds | Use case |
+|---|---|---|
+| `wikimem` | nothing — zero dependencies | Always fully works: storage, BM25 retrieval (Chinese via char-bigrams), wiki-links, journal |
+| `wikimem[zh]` | jieba | Sharper Chinese keyword recall than bigrams — picked up automatically once installed, nothing to configure |
+| `wikimem[embed]` | httpx + numpy | Semantic recall (match by meaning, not wording) — only active when you pass an `embedder`; endpoint down → BM25 carries on |
+| `wikimem[all]` | both of the above | The "don't make me think" option |
+
 ## Design rules
 
 1. **Markdown files are the only source of truth.** One file per category
@@ -71,10 +89,12 @@ Pre-alpha, built milestone by milestone
 
 - M1 ✅ — storage layer: category files, item model + metadata,
   wiki-link parsing, `journal.jsonl`, atomic writes
-- **M2 (this)** — retrieval: in-memory BM25 (char-bigram fallback, `[zh]` extra
+- M2 ✅ — retrieval: in-memory BM25 (char-bigram fallback, `[zh]` extra
   for jieba), one-hop wiki-link expansion, token budget, explain
-- M3 — optional embedding fusion (`[embed]` extra): memmap vectors, binary
-  quantization ≥10k items, pluggable `VectorIndex` port
+- **M3 (this)** — optional embedding fusion (`[embed]` extra): content-hash
+  vector cache (versioned `.npy` + plain-text keys), memmap tiers with binary
+  quantization above 10k items, pluggable `VectorIndex` port, silent BM25
+  fallback when the endpoint is down
 - M4 — CLI: `ls / show / grep / explain / graph`
 
 ## Quick start
@@ -95,9 +115,26 @@ for entry in result.items:
     print(entry.source, entry.item.name, entry.score, entry.matched_terms)
 ```
 
-Retrieval makes zero LLM calls and never persists an index — delete nothing,
-lose nothing. Install `wikimem[zh]` for jieba-based Chinese tokenization
-(default is character bigrams).
+Retrieval makes zero LLM calls and never persists the BM25 index — delete
+nothing, lose nothing. Install `wikimem[zh]` for jieba-based Chinese
+tokenization (default is character bigrams).
+
+Optional semantic fusion (`pip install wikimem[embed]`) — BM25 catches the
+wording, cosine catches the meaning, min-max fused:
+
+```python
+from wikimem.vectors import HttpEmbedder
+
+embedder = HttpEmbedder("https://api.example.com/v1", "bge-m3", api_key="sk-…")
+index = MemoryIndex(store, embedder=embedder)
+result = index.retrieve("海滨度假")   # finds 喜欢海边 even with zero shared words
+print(result.embedding_used)          # False = endpoint was down, BM25 carried on
+```
+
+Vectors live in a content-hash cache next to your markdown (versioned
+`vectors-*.npy` + readable `vectors.keys.jsonl`) — incrementally updated,
+deletable anytime, never the source of truth. An unreachable embedding
+endpoint silently degrades retrieval to BM25-only; it never raises.
 
 ## Development
 
