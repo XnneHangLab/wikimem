@@ -109,8 +109,9 @@ for entry in result.items:
 检索 0 次 LLM 调用，BM25 索引永不落盘 —— 没有可丢的东西。安装 `wikimem[zh]`
 获得 jieba 中文分词（默认为字符 bigram）。
 
-可选语义融合（`pip install wikimem[embed]`）—— BM25 抓词面、余弦抓含义，
-min-max 归一后融合：
+可选语义融合（`pip install wikimem[embed]`）—— **BM25 从不关闭**：配置
+embedder 后每次查询两路信号都跑、各自 min-max 归一后融合（与 memU ADR-0007
+收敛到的混合公式一致）。BM25 抓词面、余弦抓含义：
 
 ```python
 from wikimem.vectors import HttpEmbedder
