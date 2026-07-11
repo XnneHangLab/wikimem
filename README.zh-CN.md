@@ -1,6 +1,6 @@
 # wikimem
 
-[English](README.md) | 简体中文 | [文档](https://xnnehanglab.github.io/wikimem/zh/)
+[English](README.md) | 简体中文 | [文档](https://wikimem.xnnehang.top/zh/)
 
 <!-- 与 README.md 保持同步：任一文件更新时请同步另一份 -->
 
