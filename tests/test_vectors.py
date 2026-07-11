@@ -178,7 +178,7 @@ def test_cache_sync_roundtrip(tmp_path):
     entries = [(("c", "one"), "咖啡"), (("c", "two"), "海边")]
     keys, matrix = cache.sync(entries, embedder)
     assert [k["name"] for k in keys] == ["one", "two"]
-    assert matrix.shape == (2, 4)
+    assert matrix is not None and matrix.shape == (2, 4)
     # Removing an entry shrinks the cache on next sync.
     keys2, matrix2 = cache.sync(entries[:1], embedder)
-    assert len(keys2) == 1 and matrix2.shape[0] == 1
+    assert len(keys2) == 1 and matrix2 is not None and matrix2.shape[0] == 1

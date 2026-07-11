@@ -32,11 +32,18 @@ Homepage = "https://github.com/XnneHangLab/wikimem"
 
 [dependency-groups]
 # dev includes the [embed] deps so the fusion path is tested locally and in CI.
-dev = ["pytest>=8", "httpx>=0.27", "numpy>=1.26"]
+dev = ["pytest>=8", "httpx>=0.27", "numpy>=1.26", "ty>=0.0.1"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ty.environment]
+python-version = "3.11"
+root = ["src"]
+
+[tool.ty.src]
+include = ["src", "tests", "bench"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }

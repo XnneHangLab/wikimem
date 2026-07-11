@@ -20,16 +20,27 @@ counts as an *association win*. Run:
 
 from __future__ import annotations
 
+import io
 import random
 import statistics
 import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from wikimem import MemoryIndex, MemoryStore  # noqa: E402
+
+
+class ProbeRow(TypedDict):
+    query: str
+    expected: int
+    off: int
+    on: int
+    link_only: str
+
 
 # (category, name, content) — links form chains across categories.
 CORPUS: list[tuple[str, str, str]] = [
@@ -232,7 +243,7 @@ def run_corpus(
             store.add(category, name, content, owner="probe")
         index = MemoryIndex(store, use_jieba=None)
 
-        rows: list[dict[str, object]] = []
+        rows: list[ProbeRow] = []
         latencies: dict[bool, list[float]] = {True: [], False: []}
         tokens: dict[bool, list[int]] = {True: [], False: []}
 
@@ -257,9 +268,9 @@ def run_corpus(
                 }
             )
 
-        total_expected = sum(int(r["expected"]) for r in rows)
-        total_off = sum(int(r["off"]) for r in rows)
-        total_on = sum(int(r["on"]) for r in rows)
+        total_expected = sum(r["expected"] for r in rows)
+        total_off = sum(r["off"] for r in rows)
+        total_on = sum(r["on"] for r in rows)
 
         print(f"## {title}")
         print(
@@ -292,7 +303,7 @@ def run_corpus(
 
 
 def run() -> None:
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")  # Windows consoles default to a legacy codepage
     run_corpus("small (hand-written)", CORPUS, PROBES, show_rows=True)
     generated_corpus, generated_probes = build_generated_corpus()
