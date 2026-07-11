@@ -138,6 +138,22 @@ Vectors live in a content-hash cache next to your markdown (versioned
 deletable anytime, never the source of truth. An unreachable embedding
 endpoint silently degrades retrieval to BM25-only; it never raises.
 
+## CLI
+
+The same store, from the shell — stdlib only, ships with the package:
+
+```bash
+wikimem -s memory/ ls                      # categories + item counts
+wikimem -s memory/ show preferences        # print a category as stored
+wikimem -s memory/ grep 海边                # regex search, grep-style output
+wikimem -s memory/ explain "想去海边玩"      # retrieval scoring breakdown
+wikimem -s memory/ graph --format mermaid  # wiki-link graph (mermaid / json)
+```
+
+`graph` takes over the retired Neo4j semantic-layer visualization: the same
+relation picture, parsed straight out of the markdown. Full reference:
+<https://wikimem.xnnehang.top/reference/cli>.
+
 ## Development
 
 ```bash
