@@ -24,7 +24,7 @@ def _load_jieba():
     if not _jieba_checked:
         _jieba_checked = True
         try:
-            import jieba  # Lazy-import: optional [zh] extra
+            import jieba  # ty: ignore[unresolved-import]  # Lazy-import: optional [zh] extra
 
             jieba.setLogLevel(60)  # silence init banner
             _jieba = jieba

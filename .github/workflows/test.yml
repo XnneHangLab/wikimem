@@ -7,13 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
+  fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - name: ruff format
         run: uvx ruff format --check .
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install
+        run: uv sync # ty resolves third-party types (numpy/httpx/pytest) from the venv
+      - name: ty check
+        run: uv run ty check --error-on-warning
       - name: ruff check
         run: uvx ruff check .
 
