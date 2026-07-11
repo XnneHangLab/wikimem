@@ -1,6 +1,6 @@
 # wikimem
 
-English | [简体中文](README.zh-CN.md) | [Docs](https://xnnehanglab.github.io/wikimem/)
+English | [简体中文](README.zh-CN.md) | [Docs](https://wikimem.xnnehang.top/)
 
 <!-- Keep in sync with README.zh-CN.md: update both when either changes -->
 

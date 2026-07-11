@@ -1,14 +1,14 @@
 import { defineConfig } from "vitepress";
 
-// Deployed as a GitHub Pages project site: https://xnnehanglab.github.io/wikimem/
-// If a custom domain is added later, change `base` to "/" and set the CNAME in
-// .github/workflows/docs-deploy.yml.
+// Deployed at https://wikimem.xnnehang.top/ (custom domain, site at domain root
+// — hence base "/"). The CNAME is pinned in .github/workflows/docs-deploy.yml so
+// deploys don't unbind the domain.
 export default defineConfig({
   title: "wikimem",
-  base: "/wikimem/",
+  base: "/",
   lastUpdated: true,
 
-  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/wikimem/logo.svg" }]],
+  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/logo.svg" }]],
 
   locales: {
     root: {
