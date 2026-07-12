@@ -51,6 +51,7 @@ export default defineConfig({
               items: [
                 { text: "Core API", link: "/reference/api" },
                 { text: "Vectors API", link: "/reference/vectors" },
+                { text: "CLI", link: "/reference/cli" },
                 { text: "On-disk Format", link: "/reference/file-format" },
               ],
             },
@@ -106,6 +107,7 @@ export default defineConfig({
               items: [
                 { text: "核心 API", link: "/zh/reference/api" },
                 { text: "向量 API", link: "/zh/reference/vectors" },
+                { text: "CLI", link: "/zh/reference/cli" },
                 { text: "磁盘格式", link: "/zh/reference/file-format" },
               ],
             },

@@ -126,6 +126,21 @@ print(result.embedding_used)          # False = 端点不可用，BM25 照常工
 `vectors.keys.jsonl`）—— 增量更新、随时可删、永远不是事实源。embedding
 端点不可达时检索静默降级为纯 BM25，绝不抛错。
 
+## CLI
+
+同一个 store，在 shell 里直接查——纯 stdlib，随包安装：
+
+```bash
+wikimem -s memory/ ls                      # categories + 条目数
+wikimem -s memory/ show preferences        # 按存储原样打印一个 category
+wikimem -s memory/ grep 海边                # 正则搜索，grep 风格输出
+wikimem -s memory/ explain "想去海边玩"      # 检索打分明细
+wikimem -s memory/ graph --format mermaid  # wiki-link 关系图（mermaid / json）
+```
+
+`graph` 接替已退役的 Neo4j 语义层可视化：同一张关系图，直接从 markdown
+解析。完整参考：<https://wikimem.xnnehang.top/zh/reference/cli>。
+
 ## 参与开发
 
 ```bash
