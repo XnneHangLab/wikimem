@@ -18,19 +18,15 @@ Reading is tolerant (hand edits must never crash a read); writing is strict
 
 from __future__ import annotations
 
-import os
 import re
-import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
+from ._serialize import JOURNAL_FILENAME, atomic_write, now_iso, parse_meta, render_meta
 from .journal import Journal
 from .models import MemoryItem
 
 _CATEGORY_RE = re.compile(r"^[a-z0-9_][a-z0-9_-]*$")
 _ITEM_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
-_META_RE = re.compile(r"^<!--\s*wikimem:\s*(.*?)\s*-->\s*$")
-_JOURNAL_FILENAME = "journal.jsonl"
 
 
 def validate_category(category: str) -> str:
@@ -52,33 +48,12 @@ def sanitize_item_name(name: str) -> str:
     return cleaned
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _parse_meta(line: str) -> dict[str, str] | None:
-    m = _META_RE.match(line.strip())
-    if not m:
-        return None
-    fields: dict[str, str] = {}
-    for part in m.group(1).split("|"):
-        key, _, value = part.strip().partition("=")
-        if key and value:
-            fields[key.strip()] = value.strip()
-    return fields
-
-
-def _meta_value(value: str) -> str:
-    # '|' is the field separator inside the metadata comment.
-    return value.replace("|", "/").strip()
-
-
 class MemoryStore:
     """Read/write access to a directory of category markdown files."""
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
-        self.journal = Journal(self.root / _JOURNAL_FILENAME)
+        self.journal = Journal(self.root / JOURNAL_FILENAME)
         # Bumped on every successful in-process write; lets derived state
         # (e.g. MemoryIndex) rebuild lazily. Out-of-band file edits are not
         # detected — rebuild the index explicitly after those.
@@ -129,7 +104,7 @@ class MemoryStore:
             content=content.strip(),
             owner=owner,
             source_conv=source_conv,
-            ts=ts or _now_iso(),
+            ts=ts or now_iso(),
         )
         existing = self._read_category(category)
         replaced = any(cur.name == item.name for cur in existing)
@@ -195,7 +170,7 @@ class MemoryStore:
                 continue
             if name is None:
                 continue  # preamble (file title etc.) belongs to no item
-            parsed = _parse_meta(line)
+            parsed = parse_meta(line)
             if parsed is not None:
                 meta = parsed
                 continue
@@ -218,27 +193,9 @@ class MemoryStore:
             parts.append("")
             parts.append(item.content)
             parts.append("")
-            fields: list[str] = []
-            if item.owner:
-                fields.append(f"owner={_meta_value(item.owner)}")
-            if item.source_conv:
-                fields.append(f"source={_meta_value(item.source_conv)}")
-            if item.ts:
-                fields.append(f"ts={item.ts}")
-            if fields:
-                parts.append(f"<!-- wikimem: {' | '.join(fields)} -->")
+            meta = render_meta(owner=item.owner, source_conv=item.source_conv, ts=item.ts)
+            if meta:
+                parts.append(meta)
                 parts.append("")
         text = "\n".join(parts).rstrip("\n") + "\n"
-
-        self.root.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.root, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-                f.write(text)
-            os.replace(tmp, path)
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        atomic_write(path, text)
