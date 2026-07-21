@@ -21,9 +21,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ._serialize import JOURNAL_FILENAME, atomic_write, now_iso, parse_meta, render_meta
+from ._serialize import atomic_write, now_iso, parse_meta, render_meta
 from .journal import Journal
 from .models import MemoryItem
+
+# Store layout, not serialization format — keep out of `_serialize`.
+JOURNAL_FILENAME = "journal.jsonl"
 
 _CATEGORY_RE = re.compile(r"^[a-z0-9_][a-z0-9_-]*$")
 _ITEM_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")

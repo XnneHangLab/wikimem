@@ -5,6 +5,9 @@ and persists via a temp-file-plus-``os.replace``. Both pieces are pulled out
 here so there is exactly one parser and one renderer for the on-disk format —
 the seam a second storage primitive (the diary, ADR-0001) will reuse verbatim
 rather than reimplement, so the two formats cannot drift apart.
+
+Path constants (e.g. journal filename, diary directory) do **not** belong here —
+those are store layout, not serialization format.
 """
 
 from __future__ import annotations
@@ -16,8 +19,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _META_RE = re.compile(r"^<!--\s*wikimem:\s*(.*?)\s*-->\s*$")
-
-JOURNAL_FILENAME = "journal.jsonl"
 
 
 def now_iso() -> str:
@@ -56,16 +57,17 @@ def render_meta(
 ) -> str | None:
     """Render the metadata comment, or ``None`` when no field is set.
 
-    ``ts`` is machine-generated ISO-8601 and written raw; ``owner`` / ``source``
-    are user strings and get ``|`` escaped.
+    ``owner`` / ``source`` / ``ts`` all go through ``meta_value`` so a hand-set
+    or adversarial value with ``|`` cannot split fields. Empty / whitespace-only
+    strings are treated as unset (same as ``None``).
     """
     fields: list[str] = []
-    if owner:
-        fields.append(f"owner={meta_value(owner)}")
-    if source_conv:
-        fields.append(f"source={meta_value(source_conv)}")
-    if ts:
-        fields.append(f"ts={ts}")
+    if owner and (owner_v := meta_value(owner)):
+        fields.append(f"owner={owner_v}")
+    if source_conv and (source_v := meta_value(source_conv)):
+        fields.append(f"source={source_v}")
+    if ts and (ts_v := meta_value(ts)):
+        fields.append(f"ts={ts_v}")
     if not fields:
         return None
     return f"<!-- wikimem: {' | '.join(fields)} -->"
@@ -76,7 +78,8 @@ def atomic_write(path: Path, text: str) -> None:
 
     The temp file shares ``path``'s directory so the replace is atomic (same
     filesystem), and is cleaned up on any failure so a crash never leaves a
-    ``.tmp`` behind.
+    ``.tmp`` behind. ``path.parent`` is created if missing, so nested layouts
+    (e.g. ``diary/YYYY-MM-DD.md``) work without a separate mkdir.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
