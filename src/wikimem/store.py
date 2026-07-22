@@ -20,10 +20,14 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ._serialize import atomic_write, now_iso, parse_meta, render_meta
 from .journal import Journal
 from .models import MemoryItem
+
+if TYPE_CHECKING:
+    from .diary import Diary
 
 # Store layout, not serialization format — keep out of `_serialize`.
 JOURNAL_FILENAME = "journal.jsonl"
@@ -61,10 +65,26 @@ class MemoryStore:
         # (e.g. MemoryIndex) rebuild lazily. Out-of-band file edits are not
         # detected — rebuild the index explicitly after those.
         self._revision = 0
+        self._diary: Diary | None = None
 
     @property
     def revision(self) -> int:
         return self._revision
+
+    @property
+    def diary(self) -> Diary:
+        """The event-stream primitive (ADR-0001), sharing this store's journal.
+
+        Lazily constructed so ``import wikimem`` never pulls in the diary module
+        unless a caller reaches for it. Diary writes land in the *same*
+        ``journal.jsonl`` as wiki writes, but do not bump ``revision`` — the
+        wiki BM25 index is not built over diary files.
+        """
+        if self._diary is None:
+            from .diary import Diary
+
+            self._diary = Diary(self.root, journal=self.journal)
+        return self._diary
 
     # ---------------------------------------------------------------- reads
 
