@@ -7,9 +7,10 @@ One JSON line per mutation. ``tail -f journal.jsonl`` is the live answer to
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from ._serialize import now_iso
 
 
 class Journal:
@@ -27,7 +28,7 @@ class Journal:
         detail: str | None = None,
     ) -> None:
         entry: dict[str, Any] = {
-            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "ts": now_iso(),
             "action": action,
             "category": category,
             "item": name,
