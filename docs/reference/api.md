@@ -5,8 +5,8 @@ zero-dependency install:
 
 ```python
 from wikimem import (
-    MemoryStore, MemoryIndex, Journal,
-    MemoryItem, WikiLink, RetrievalResult, RetrievedItem,
+    MemoryStore, MemoryIndex, Journal, Diary,
+    MemoryItem, DiaryEntry, WikiLink, RetrievalResult, RetrievedItem,
     tokenize, est_tokens, parse_wiki_links,
     validate_category, sanitize_item_name,
 )
@@ -22,9 +22,11 @@ here, so importing `wikimem` never touches numpy.
 MemoryStore(root: Path | str)
 ```
 
-Read/write access to a directory of category markdown files. Creating the
-store does not touch the filesystem; directories appear on first write. The
-store owns a [`Journal`](#journal) at `root / "journal.jsonl"`.
+Read/write access to a store's wiki categories, which live as markdown files
+under `root / "category/"`. Creating the store does not touch the filesystem;
+directories appear on first write. The store owns a [`Journal`](#journal) at
+`root / "journal.jsonl"`, and exposes the event-stream primitive at
+[`store.diary`](#diary) (which shares that journal).
 
 ### Reads
 
@@ -33,7 +35,7 @@ Reads are **tolerant by design** — hand-edited files must never crash a read
 
 | method | returns |
 |---|---|
-| `categories()` | sorted category names — one per `*.md` file in `root` |
+| `categories()` | sorted category names — one per `*.md` file in `root / "category/"` |
 | `items(category=None)` | all items, or one category's |
 | `get(category, name)` | the item, or `None` (name is whitespace-normalized before comparing) |
 
@@ -65,7 +67,54 @@ store.add(
 
 An integer bumped on every successful **in-process** write; `MemoryIndex`
 uses it to rebuild lazily. Out-of-band file edits do not bump it — call
-`index.rebuild()` after those.
+`index.rebuild()` after those. Diary writes do **not** bump it — the wiki BM25
+index is not built over diary files.
+
+## Diary
+
+```python
+store.diary            # -> Diary, lazily constructed, shares the store's journal
+Diary(root, *, journal=None)   # or construct standalone
+```
+
+The **event-stream** primitive (ADR-0001): where the wiki is state ("what is
+true now"), the diary is events ("what happened, and when"). Entries live as
+`## HH:MM` sections in per-day files `root / "diary" / "YYYY-MM-DD.md"`, in the
+same serialization as wiki items (exact rules in
+[On-disk Format](/reference/file-format#diary-files-diary)).
+
+### Writes
+
+```python
+store.diary.append(
+    "他说换了工作，语气很兴奋。[[work:current-job]]",
+    ts=None,          # optional ISO-8601 instant; defaults to now (UTC)
+    date=None,        # optional YYYY-MM-DD; defaults to ts rendered in tz
+    time=None,        # optional HH:MM;     defaults to ts rendered in tz
+    owner=None,       # optional provenance
+    source_conv=None, # optional provenance
+    tz=None,          # zone for the default date/time (default: system local)
+) -> DiaryEntry
+```
+
+**Append-only** — this is the only write. There is deliberately no edit or
+delete: entries are only ever added, and the journal records one `diary` line
+per append. Two events may share a minute; both are kept (unlike the wiki's
+last-wins). Raises `ValueError` on empty content or a malformed `date` / `time`
+/ `ts`.
+
+### Reads
+
+| method | returns |
+|---|---|
+| `day(date)` | entries for one `YYYY-MM-DD`, in chronological (file) order |
+| `dates()` | every day that has a file, ascending |
+
+`ts` is stored as a normalized UTC ISO-8601 second-precision string; `date` /
+`time` are the human-local day and wall clock. Raises `ValueError` on a
+malformed `ts` (no silent fallback to "now"). The inclusive multi-day
+`window(start, end)` range read is planned (Phase 3, the ground
+[ADR-0002](/adr/0002-time-range-retrieval)'s time gate builds on).
 
 ## Naming helpers
 
@@ -80,11 +129,11 @@ sanitize_item_name(name: str) -> str       # raises ValueError if invalid
   spaces; the characters `[[`, `]]`, `:`, `|`, `#` are rejected (they would
   break headings, links, or metadata).
 
-## MemoryItem / WikiLink
+## MemoryItem / DiaryEntry / WikiLink
 
 ```python
 @dataclass
-class MemoryItem:
+class MemoryItem:                   # wiki: the retrieval unit (state)
     category: str
     name: str
     content: str
@@ -94,6 +143,20 @@ class MemoryItem:
 
     @property
     def links(self) -> list[WikiLink]   # parsed from content on access
+```
+
+```python
+@dataclass
+class DiaryEntry:                   # diary: one event (parallel to MemoryItem)
+    date: str                       # YYYY-MM-DD — the day file
+    time: str                       # HH:MM — the heading (human-local wall clock)
+    content: str
+    owner: str | None = None
+    source_conv: str | None = None
+    ts: str | None = None           # ISO-8601 UTC instant
+
+    @property
+    def links(self) -> list[WikiLink]   # same wiki-link parsing as MemoryItem
 ```
 
 ```python
@@ -162,12 +225,14 @@ in-memory derived state: built on first use, rebuilt automatically when
 Journal(path: Path | str)
 
 journal.append(action, *, category, name,
-               owner=None, source_conv=None, detail=None)
+               owner=None, source_conv=None, detail=None)   # wiki mutations
+journal.append_diary(*, date, time, owner=None, source_conv=None)  # diary appends
 journal.entries() -> list[dict]
 ```
 
-Append-only JSONL log. `MemoryStore` writes it automatically (`add` /
-`update` / `remove`); you rarely construct one yourself. Line schema:
+Append-only JSONL log, shared by both primitives. `MemoryStore` writes it
+automatically (`add` / `update` / `remove`), and `Diary.append` writes the
+`diary` line — you rarely construct one yourself. Line schema:
 [On-disk Format](/reference/file-format#journal-jsonl).
 
 ## Tokenization

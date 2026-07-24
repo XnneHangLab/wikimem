@@ -56,8 +56,9 @@ BM25 索引在启动时免费重建，向量不一样 —— 重算要花 embedd
 
 ```
 memory/
-├── preferences.md
-├── daily_life.md
+├── category/
+│   ├── preferences.md
+│   └── daily_life.md
 ├── journal.jsonl
 ├── vectors-000003.npy     ← float32 矩阵，一行一个条目
 └── vectors.keys.jsonl     ← 明文：哪一行对应哪个条目（内容哈希）

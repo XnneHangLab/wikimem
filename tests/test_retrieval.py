@@ -106,8 +106,9 @@ def test_empty_query_and_empty_store(tmp_path, index):
 
 def test_zero_llm_calls_is_structural():
     # The retrieval module must not import any LLM/network machinery.
-    import wikimem.retrieval as retrieval
+    from wikimem import retrieval
 
-    source = open(retrieval.__file__, encoding="utf-8").read()
+    with open(retrieval.__file__, encoding="utf-8") as f:
+        source = f.read()
     for forbidden in ("httpx", "requests", "urllib", "openai", "anthropic"):
         assert forbidden not in source

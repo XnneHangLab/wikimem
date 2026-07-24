@@ -1,4 +1,4 @@
-"""Storage layer: one markdown file per category, ``##`` sections as items.
+"""Storage layer: one markdown file per category (under ``category/``), ``##`` sections as items.
 
 Serialization format (human-first — the file IS the database):
 
@@ -20,13 +20,20 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ._serialize import atomic_write, now_iso, parse_meta, render_meta
 from .journal import Journal
 from .models import MemoryItem
 
+if TYPE_CHECKING:
+    from .diary import Diary
+
 # Store layout, not serialization format — keep out of `_serialize`.
 JOURNAL_FILENAME = "journal.jsonl"
+# Wiki category files live under this subdir (parallel to the diary's ``diary/``)
+# so an unbounded, growing set of categories never clutters the store root.
+CATEGORY_DIRNAME = "category"
 
 _CATEGORY_RE = re.compile(r"^[a-z0-9_][a-z0-9_-]*$")
 _ITEM_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
@@ -52,7 +59,7 @@ def sanitize_item_name(name: str) -> str:
 
 
 class MemoryStore:
-    """Read/write access to a directory of category markdown files."""
+    """Read/write access to a store's ``category/`` directory of markdown files."""
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
@@ -61,17 +68,34 @@ class MemoryStore:
         # (e.g. MemoryIndex) rebuild lazily. Out-of-band file edits are not
         # detected — rebuild the index explicitly after those.
         self._revision = 0
+        self._diary: Diary | None = None
 
     @property
     def revision(self) -> int:
         return self._revision
 
+    @property
+    def diary(self) -> Diary:
+        """The event-stream primitive (ADR-0001), sharing this store's journal.
+
+        Lazily constructed so ``import wikimem`` never pulls in the diary module
+        unless a caller reaches for it. Diary writes land in the *same*
+        ``journal.jsonl`` as wiki writes, but do not bump ``revision`` — the
+        wiki BM25 index is not built over diary files.
+        """
+        if self._diary is None:
+            from .diary import Diary
+
+            self._diary = Diary(self.root, journal=self.journal)
+        return self._diary
+
     # ---------------------------------------------------------------- reads
 
     def categories(self) -> list[str]:
-        if not self.root.exists():
+        cat_dir = self.root / CATEGORY_DIRNAME
+        if not cat_dir.exists():
             return []
-        return sorted(p.stem for p in self.root.glob("*.md"))
+        return sorted(p.stem for p in cat_dir.glob("*.md"))
 
     def items(self, category: str | None = None) -> list[MemoryItem]:
         cats = [category] if category is not None else self.categories()
@@ -138,7 +162,7 @@ class MemoryStore:
     # ------------------------------------------------------------ internals
 
     def _category_path(self, category: str) -> Path:
-        return self.root / f"{category}.md"
+        return self.root / CATEGORY_DIRNAME / f"{category}.md"
 
     def _read_category(self, category: str) -> list[MemoryItem]:
         path = self._category_path(category)

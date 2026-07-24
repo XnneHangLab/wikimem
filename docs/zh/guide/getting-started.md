@@ -27,7 +27,7 @@ store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日
 看看它写下了什么：
 
 ```markdown
-<!-- memory/preferences.md -->
+<!-- memory/category/preferences.md -->
 # preferences
 
 ## likes-the-sea
@@ -77,15 +77,18 @@ for entry in result.items:
 
 ```
 memory/
-├── preferences.md    ← 事实源
-├── daily_life.md     ← 事实源
-└── journal.jsonl     ← 追加式审计日志，一行一次变更
+├── category/             ← wiki（状态层）：每个分类一个文件
+│   ├── preferences.md    ← 事实源
+│   └── daily_life.md     ← 事实源
+├── diary/                ← diary（事件层）：每天一个文件
+└── journal.jsonl         ← 追加式审计日志（wiki + diary 共用）
 ```
 
-基础管线持久化的东西就这些。BM25 索引住在内存里，启动时从文件重建 ——
-没有要迁移的、要备份的、会损坏的状态。如果启用
-[embedding 融合](/zh/guide/embedding-fusion)，markdown 旁边会多出一个向量缓存
-（`vectors-*.npy` + `vectors.keys.jsonl`）—— 它是缓存，随时删都是安全的。
+基础管线持久化的东西就这些。wiki 分类在 `category/`，日记在 `diary/`。
+BM25 索引住在内存里，启动时从 wiki 文件重建 —— 没有要迁移的、要备份的、
+会损坏的状态。如果启用 [embedding 融合](/zh/guide/embedding-fusion)，
+markdown 旁边会多出一个向量缓存（`vectors-*.npy` + `vectors.keys.jsonl`）
+—— 它是缓存，随时删都是安全的。
 
 ## 直接手改文件
 

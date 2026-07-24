@@ -28,7 +28,7 @@ store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日
 update model. Now look at what it wrote:
 
 ```markdown
-<!-- memory/preferences.md -->
+<!-- memory/category/preferences.md -->
 # preferences
 
 ## likes-the-sea
@@ -81,15 +81,18 @@ why. Details in [Retrieval](/guide/retrieval).
 
 ```
 memory/
-├── preferences.md    ← source of truth
-├── daily_life.md     ← source of truth
-└── journal.jsonl     ← append-only audit log, one line per mutation
+├── category/             ← wiki (state layer): one file per category
+│   ├── preferences.md    ← source of truth
+│   └── daily_life.md     ← source of truth
+├── diary/                ← diary (event layer): one file per day
+└── journal.jsonl         ← append-only audit log (wiki + diary)
 ```
 
-That's everything the base pipeline persists. The BM25 index lives in memory
-and is rebuilt from the files at startup — there is nothing to migrate, back
-up, or corrupt. If you enable [embedding fusion](/guide/embedding-fusion), a
-vector cache (`vectors-*.npy` + `vectors.keys.jsonl`) appears next to the
+That's everything the base pipeline persists. Wiki categories live under
+`category/`; the diary lives under `diary/`. The BM25 index lives in memory
+and is rebuilt from the wiki files at startup — there is nothing to migrate,
+back up, or corrupt. If you enable [embedding fusion](/guide/embedding-fusion),
+a vector cache (`vectors-*.npy` + `vectors.keys.jsonl`) appears next to the
 markdown; it is a cache, and deleting it is always safe.
 
 ## Edit by hand

@@ -154,8 +154,8 @@ class MemoryIndex:
             return {
                 row: score for row, score in self._vec_index.search(query_vec, top_k) if score > 0.0
             }
-        except Exception:
-            return None  # fail-open: embedding endpoint down != retrieval down
+        except Exception:  # noqa: BLE001 - fail-open: embedding endpoint down != retrieval down
+            return None
 
     def retrieve(
         self,

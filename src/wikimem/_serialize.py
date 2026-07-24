@@ -1,10 +1,10 @@
 """Shared on-disk serialization: the metadata comment and atomic writes.
 
-The wiki storage layer (``category.md``) encodes provenance in an HTML comment
+The wiki storage layer (``category/*.md``) encodes provenance in an HTML comment
 and persists via a temp-file-plus-``os.replace``. Both pieces are pulled out
 here so there is exactly one parser and one renderer for the on-disk format —
-the seam a second storage primitive (the diary, ADR-0001) will reuse verbatim
-rather than reimplement, so the two formats cannot drift apart.
+the seam the diary primitive (ADR-0001) reuses verbatim rather than reimplement,
+so the two formats cannot drift apart.
 
 Path constants (e.g. journal filename, diary directory) do **not** belong here —
 those are store layout, not serialization format.
@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _META_RE = re.compile(r"^<!--\s*wikimem:\s*(.*?)\s*-->\s*$")
@@ -23,7 +23,7 @@ _META_RE = re.compile(r"^<!--\s*wikimem:\s*(.*?)\s*-->\s*$")
 
 def now_iso() -> str:
     """Current instant as an ISO-8601 UTC string, second precision."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def parse_meta(line: str) -> dict[str, str] | None:

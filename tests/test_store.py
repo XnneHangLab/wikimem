@@ -26,7 +26,7 @@ def test_add_and_get_roundtrip(store):
 
 def test_file_is_human_readable_markdown(store, tmp_path):
     store.add("preferences", "likes-the-sea", "喜欢海。", owner="user:xnne")
-    text = (tmp_path / "memory" / "preferences.md").read_text(encoding="utf-8")
+    text = (tmp_path / "memory" / "category" / "preferences.md").read_text(encoding="utf-8")
     assert text.startswith("# preferences\n")
     assert "## likes-the-sea" in text
     assert "<!-- wikimem: owner=user:xnne" in text
@@ -50,14 +50,14 @@ def test_remove(store):
 def test_removing_last_item_removes_file(store, tmp_path):
     store.add("preferences", "only-one", "x")
     store.remove("preferences", "only-one")
-    assert not (tmp_path / "memory" / "preferences.md").exists()
+    assert not (tmp_path / "memory" / "category" / "preferences.md").exists()
     assert store.categories() == []
 
 
 def test_hand_edited_item_without_metadata_is_tolerated(store, tmp_path):
-    root = tmp_path / "memory"
-    root.mkdir(parents=True)
-    (root / "notes.md").write_text(
+    cat_dir = tmp_path / "memory" / "category"
+    cat_dir.mkdir(parents=True)
+    (cat_dir / "notes.md").write_text(
         "# notes\n\n## 手写条目\n\n用户直接在文件里写的，没有元数据注释。\n",
         encoding="utf-8",
     )
@@ -68,9 +68,9 @@ def test_hand_edited_item_without_metadata_is_tolerated(store, tmp_path):
 
 
 def test_duplicate_headings_last_wins(store, tmp_path):
-    root = tmp_path / "memory"
-    root.mkdir(parents=True)
-    (root / "notes.md").write_text(
+    cat_dir = tmp_path / "memory" / "category"
+    cat_dir.mkdir(parents=True)
+    (cat_dir / "notes.md").write_text(
         "# notes\n\n## same\n\nold\n\n## same\n\nnew\n",
         encoding="utf-8",
     )
