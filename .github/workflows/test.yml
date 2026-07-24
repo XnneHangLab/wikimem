@@ -12,8 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - name: Install
+        run: uv sync # pinned ruff (dev group) — reproducible formatting
       - name: ruff format
-        run: uvx ruff format --check .
+        run: uv run ruff format --check .
 
   lint:
     runs-on: ubuntu-latest
@@ -21,11 +23,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - name: Install
-        run: uv sync # ty resolves third-party types (numpy/httpx/pytest) from the venv
+        run: uv sync # ty + pinned ruff resolve from the venv
       - name: ty check
         run: uv run ty check --error-on-warning
       - name: ruff check
-        run: uvx ruff check .
+        run: uv run ruff check .
 
   test:
     runs-on: ubuntu-latest

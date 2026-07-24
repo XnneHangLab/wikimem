@@ -35,7 +35,9 @@ wikimem = "wikimem.cli:main"
 
 [dependency-groups]
 # dev includes the [embed] deps so the fusion path is tested locally and in CI.
-dev = ["pytest>=8", "httpx>=0.27", "numpy>=1.26", "ty>=0.0.1"]
+# ruff is pinned (not `uvx ruff`, which floats to latest) so fmt/lint are
+# reproducible: an unpinned upgrade silently changed default rules + formatting.
+dev = ["pytest>=8", "httpx>=0.27", "numpy>=1.26", "ty>=0.0.1", "ruff==0.14.0"]
 
 [tool.ruff]
 line-length = 100
