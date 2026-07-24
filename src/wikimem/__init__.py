@@ -5,6 +5,7 @@ from .journal import Journal
 from .links import parse_wiki_links
 from .models import DiaryEntry, MemoryItem, WikiLink
 from .retrieval import MemoryIndex, RetrievalResult, RetrievedItem
+from .serve import serve
 from .store import MemoryStore, sanitize_item_name, validate_category
 from .tokenize import est_tokens, tokenize
 
@@ -21,6 +22,7 @@ __all__ = [
     "est_tokens",
     "parse_wiki_links",
     "sanitize_item_name",
+    "serve",
     "tokenize",
     "validate_category",
 ]

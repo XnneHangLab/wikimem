@@ -251,6 +251,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_graph = sub.add_parser("graph", help="export the wiki-link graph")
     p_graph.add_argument("--format", choices=("mermaid", "json"), default="mermaid")
 
+    p_serve = sub.add_parser("serve", help="serve the store over HTTP+JSON (read-only, localhost)")
+    p_serve.add_argument("--host", default="127.0.0.1", help="bind address (default: 127.0.0.1)")
+    p_serve.add_argument("--port", type=int, default=8787, help="bind port (default: 8787)")
+    p_serve.add_argument(
+        "--cors", default=None, help="Access-Control-Allow-Origin for a cross-origin frontend"
+    )
+
     return parser
 
 
@@ -285,6 +292,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "graph":
         return _cmd_graph(store, args.format)
+    if args.command == "serve":
+        from .serve import serve
+
+        serve(store, host=args.host, port=args.port, cors=args.cors)
+        return 0
     raise AssertionError(f"unhandled command: {args.command}")
 
 

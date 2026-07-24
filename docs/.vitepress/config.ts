@@ -52,6 +52,7 @@ export default defineConfig({
                 { text: "Core API", link: "/reference/api" },
                 { text: "Vectors API", link: "/reference/vectors" },
                 { text: "CLI", link: "/reference/cli" },
+                { text: "Serve (HTTP+JSON)", link: "/reference/serve" },
                 { text: "On-disk Format", link: "/reference/file-format" },
               ],
             },
