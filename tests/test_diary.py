@@ -1,9 +1,9 @@
-"""Diary storage — the append-only event-stream primitive (ADR-0001, Phase 2).
+"""Diary storage — the append-only event-stream primitive (ADR-0001).
 
 Covers the decisions the ADR flagged for implementation time: append-only with
 no edit/delete, same-minute entries kept (not deduped like wiki), chronological
-day files, UTC ``ts`` vs local file date, and one shared journal with the wiki.
-``window()`` (multi-day range) lands in Phase 3.
+day files, UTC ``ts`` vs local file date, one shared journal with the wiki, and
+the inclusive multi-day ``window()`` range read.
 """
 
 from datetime import timedelta, timezone
@@ -87,6 +87,38 @@ def test_dates_lists_day_files_ascending(diary: Diary):
     diary.append("x", date="2026-07-22", time="10:00")
     diary.append("y", date="2026-07-20", time="10:00")
     assert diary.dates() == ["2026-07-20", "2026-07-22"]
+
+
+# ----------------------------------------------------------------------- window
+
+
+def test_window_is_inclusive_and_chronological(diary: Diary):
+    diary.append("d1", date="2026-07-20", time="10:00")
+    diary.append("d2 morning", date="2026-07-21", time="08:00")
+    diary.append("d2 night", date="2026-07-21", time="20:00")
+    diary.append("d3", date="2026-07-22", time="10:00")
+
+    got = diary.window("2026-07-21", "2026-07-22")
+    assert [e.content for e in got] == ["d2 morning", "d2 night", "d3"]
+
+
+def test_window_reversed_bounds_are_swapped(diary: Diary):
+    diary.append("a", date="2026-07-20", time="10:00")
+    diary.append("b", date="2026-07-21", time="10:00")
+    assert [e.date for e in diary.window("2026-07-21", "2026-07-20")] == [
+        "2026-07-20",
+        "2026-07-21",
+    ]
+
+
+def test_window_single_day_empty_range_and_validation(diary: Diary):
+    diary.append("only", date="2026-07-21", time="09:00")
+    assert [e.content for e in diary.window("2026-07-21", "2026-07-21")] == ["only"]
+    assert diary.window("2026-08-01", "2026-08-31") == []
+    with pytest.raises(ValueError):
+        diary.window("not-a-date", "2026-07-21")
+    with pytest.raises(ValueError):
+        diary.window("2026-07-21", "not-a-date")
 
 
 # -------------------------------------------------------------- time semantics

@@ -108,13 +108,14 @@ last-wins). Raises `ValueError` on empty content or a malformed `date` / `time`
 | method | returns |
 |---|---|
 | `day(date)` | entries for one `YYYY-MM-DD`, in chronological (file) order |
+| `window(start, end)` | entries across the inclusive `[start, end]` date range, chronological (a reversed pair is swapped) |
 | `dates()` | every day that has a file, ascending |
 
 `ts` is stored as a normalized UTC ISO-8601 second-precision string; `date` /
 `time` are the human-local day and wall clock. Raises `ValueError` on a
-malformed `ts` (no silent fallback to "now"). The inclusive multi-day
-`window(start, end)` range read is planned (Phase 3, the ground
-[ADR-0002](/adr/0002-time-range-retrieval)'s time gate builds on).
+malformed `ts` (no silent fallback to "now"). `window` is the O(days) file-set
+lookup [ADR-0002](/adr/0002-time-range-retrieval)'s time gate builds on — the
+diary offers only the range, no scoring.
 
 ## Naming helpers
 
