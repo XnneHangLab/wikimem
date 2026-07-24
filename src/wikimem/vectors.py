@@ -31,8 +31,9 @@ import json
 import os
 import re
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Protocol
 
 import numpy as np
 
@@ -40,7 +41,7 @@ _KEYS_FILENAME = "vectors.keys.jsonl"
 _DATA_RE = re.compile(r"^vectors-(\d+)\.npy$")
 
 # Popcount lookup table for Hamming distance over packed bits (numpy<2 compat).
-_POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint16)
+_POPCOUNT = np.array([i.bit_count() for i in range(256)], dtype=np.uint16)
 
 
 class Embedder(Protocol):

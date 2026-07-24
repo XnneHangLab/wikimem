@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _META_RE = re.compile(r"^<!--\s*wikimem:\s*(.*?)\s*-->\s*$")
@@ -23,7 +23,7 @@ _META_RE = re.compile(r"^<!--\s*wikimem:\s*(.*?)\s*-->\s*$")
 
 def now_iso() -> str:
     """Current instant as an ISO-8601 UTC string, second precision."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def parse_meta(line: str) -> dict[str, str] | None:

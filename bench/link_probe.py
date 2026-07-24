@@ -31,7 +31,7 @@ from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from wikimem import MemoryIndex, MemoryStore  # noqa: E402
+from wikimem import MemoryIndex, MemoryStore
 
 
 class ProbeRow(TypedDict):

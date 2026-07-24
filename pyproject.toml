@@ -40,6 +40,10 @@ dev = ["pytest>=8", "httpx>=0.27", "numpy>=1.26", "ty>=0.0.1"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# ruff 0.16 formats Python code blocks *inside* Markdown too; keep our docs
+# hand-authored (this PR is code, not a repo-wide doc reflow). Exclude .md from
+# all ruff passes — revisit as a separate "format doc snippets" change if wanted.
+extend-exclude = ["*.md"]
 
 [tool.ty.environment]
 python-version = "3.11"

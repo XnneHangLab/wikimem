@@ -32,7 +32,8 @@ may carry ``[[category:item]]`` wiki-links back into the state layer.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone, tzinfo
+from datetime import UTC, datetime, tzinfo
+from datetime import date as _date
 from pathlib import Path
 
 from ._serialize import atomic_write, parse_meta, render_meta
@@ -55,7 +56,7 @@ def _validate_date(date: str) -> str:
     if not _DATE_RE.match(date):
         raise ValueError(f"invalid diary date {date!r}: expected YYYY-MM-DD")
     try:
-        datetime.strptime(date, "%Y-%m-%d")
+        _date.fromisoformat(date)
     except ValueError as exc:  # e.g. 2026-13-40
         raise ValueError(f"invalid diary date {date!r}: {exc}") from exc
     return date
@@ -73,8 +74,8 @@ def _parse_iso(value: str) -> datetime:
     try:
         dt = datetime.fromisoformat(value)
     except ValueError:
-        return datetime.now(timezone.utc)
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+        return datetime.now(UTC)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 class Diary:
@@ -123,7 +124,7 @@ class Diary:
         if not text:
             raise ValueError("diary entry content is empty")
 
-        instant = _parse_iso(ts) if ts is not None else datetime.now(timezone.utc)
+        instant = _parse_iso(ts) if ts is not None else datetime.now(UTC)
         if ts is None:
             ts = instant.isoformat(timespec="seconds")
         if date is None or time is None:
