@@ -171,6 +171,23 @@ class Diary:
         """All entries for one day, in file (chronological) order."""
         return self._read_day(_validate_date(date))
 
+    def window(self, start: str, end: str) -> list[DiaryEntry]:
+        """All entries in the inclusive date range ``[start, end]``, chronological.
+
+        Bounds are ``YYYY-MM-DD``; a reversed pair is swapped. This is the
+        O(days) file-set lookup ADR-0002's time gate stands on — the diary
+        primitive offers only the window, no scoring.
+        """
+        start = _validate_date(start)
+        end = _validate_date(end)
+        if start > end:
+            start, end = end, start
+        out: list[DiaryEntry] = []
+        for d in self.dates():
+            if start <= d <= end:
+                out.extend(self._read_day(d))
+        return out
+
     # ------------------------------------------------------------ internals
 
     def _day_path(self, date: str) -> Path:
