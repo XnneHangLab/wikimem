@@ -99,6 +99,7 @@ export default defineConfig({
               text: "实践",
               items: [
                 { text: "宿主集成", link: "/zh/guide/host-integration" },
+                { text: "写日记", link: "/zh/guide/writing-diary" },
               ],
             },
           ],
