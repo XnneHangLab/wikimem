@@ -42,6 +42,7 @@ export default defineConfig({
               text: "In Practice",
               items: [
                 { text: "Host Integration", link: "/guide/host-integration" },
+                { text: "Writing the Diary", link: "/guide/writing-diary" },
               ],
             },
           ],
