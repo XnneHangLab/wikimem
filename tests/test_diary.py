@@ -117,6 +117,8 @@ def test_window_single_day_empty_range_and_validation(diary: Diary):
     assert diary.window("2026-08-01", "2026-08-31") == []
     with pytest.raises(ValueError):
         diary.window("not-a-date", "2026-07-21")
+    with pytest.raises(ValueError):
+        diary.window("2026-07-21", "not-a-date")
 
 
 # -------------------------------------------------------------- time semantics

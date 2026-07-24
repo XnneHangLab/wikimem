@@ -183,8 +183,10 @@ class Diary:
         if start > end:
             start, end = end, start
         out: list[DiaryEntry] = []
-        for d in self.dates():
-            if start <= d <= end:
+        for d in self.dates():  # ascending
+            if d > end:
+                break  # dates() is sorted, so nothing past `end` can still match
+            if d >= start:
                 out.extend(self._read_day(d))
         return out
 
