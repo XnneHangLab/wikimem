@@ -4,8 +4,8 @@
 
 ```python
 from wikimem import (
-    MemoryStore, MemoryIndex, Journal,
-    MemoryItem, WikiLink, RetrievalResult, RetrievedItem,
+    MemoryStore, MemoryIndex, Journal, Diary,
+    MemoryItem, DiaryEntry, WikiLink, RetrievalResult, RetrievedItem,
     tokenize, est_tokens, parse_wiki_links,
     validate_category, sanitize_item_name,
 )
@@ -20,9 +20,10 @@ from wikimem import (
 MemoryStore(root: Path | str)
 ```
 
-对一个分类 markdown 文件目录的读写入口。构造 store 不触碰文件系统；
-目录在首次写入时出现。store 自带一个位于 `root / "journal.jsonl"` 的
-[`Journal`](#journal)。
+对 store 里 wiki 分类的读写入口，分类文件落在 `root / "category/"`。
+构造 store 不触碰文件系统；目录在首次写入时出现。store 自带一个位于
+`root / "journal.jsonl"` 的 [`Journal`](#journal)，并通过
+[`store.diary`](#diary) 暴露事件流原语（与该 journal 共用）。
 
 ### 读
 
@@ -31,7 +32,7 @@ MemoryStore(root: Path | str)
 
 | 方法 | 返回 |
 |---|---|
-| `categories()` | 排序后的分类名 —— `root` 下每个 `*.md` 一个 |
+| `categories()` | 排序后的分类名 —— `root / "category/"` 下每个 `*.md` 一个 |
 | `items(category=None)` | 全部条目，或某一分类的 |
 | `get(category, name)` | 条目或 `None`（比较前先做空白归一） |
 
@@ -61,6 +62,50 @@ store.add(
 
 整数，每次**进程内**写入成功后递增；`MemoryIndex` 据此惰性重建。
 进程外的文件修改不会递增它 —— 那之后调用 `index.rebuild()`。
+日记写入**不会**递增它 —— wiki 的 BM25 索引不覆盖 diary 文件。
+
+## Diary
+
+```python
+store.diary            # -> Diary，惰性构造，与 store 共用 journal
+Diary(root, *, journal=None)   # 也可独立构造
+```
+
+**事件流**原语（ADR-0001）：wiki 是状态层（"现在为真的事"），diary 是
+事件层（"发生过的事，以及何时"）。条目以 `## HH:MM` 小节落在按天文件
+`root / "diary" / "YYYY-MM-DD.md"` 里，序列化与 wiki 条目相同（精确规则见
+[磁盘格式](/zh/reference/file-format#日记文件-diary)）。
+
+### 写
+
+```python
+store.diary.append(
+    "他说换了工作，语气很兴奋。[[work:current-job]]",
+    ts=None,          # 可选 ISO-8601 时刻；默认现在（UTC）
+    date=None,        # 可选 YYYY-MM-DD；默认 ts 在 tz 下的日历日
+    time=None,        # 可选 HH:MM；     默认 ts 在 tz 下的墙钟
+    owner=None,       # 可选溯源
+    source_conv=None, # 可选溯源
+    tz=None,          # 默认 date/time 所用时区（默认系统本地）
+) -> DiaryEntry
+```
+
+**Append-only** —— 这是唯一写接口。刻意不提供改写/删除：条目只追加，
+journal 每条记一行 `diary`。同分钟可有两条事件，都保留（与 wiki 的
+last-wins 相反）。内容为空，或 `date` / `time` / `ts` 格式非法时抛
+`ValueError`。
+
+### 读
+
+| 方法 | 返回 |
+|---|---|
+| `day(date)` | 某一 `YYYY-MM-DD` 的全部条目，按文件（时间）顺序 |
+| `dates()` | 所有有文件的日期，升序 |
+
+`ts` 存为归一化后的 UTC ISO-8601 秒精度字符串；`date` / `time` 是人本地的
+日历日与墙钟。非法 `ts` 会抛 `ValueError`（不会静默回退到"现在"）。
+闭区间跨日 `window(start, end)` 范围读计划在 Phase 3（[ADR-0002](/adr/0002-time-range-retrieval)
+时间门控的地基）。
 
 ## 命名助手
 
@@ -74,11 +119,11 @@ sanitize_item_name(name: str) -> str       # 非法时抛 ValueError
 - **条目名**可为任何语言；连续空白折叠成单个空格；拒绝
   `[[`、`]]`、`:`、`|`、`#`（它们会破坏标题、链接或元数据）。
 
-## MemoryItem / WikiLink
+## MemoryItem / DiaryEntry / WikiLink
 
 ```python
 @dataclass
-class MemoryItem:
+class MemoryItem:                   # wiki：检索单元（状态）
     category: str
     name: str
     content: str
@@ -88,6 +133,20 @@ class MemoryItem:
 
     @property
     def links(self) -> list[WikiLink]   # 访问时从 content 现解析
+```
+
+```python
+@dataclass
+class DiaryEntry:                   # diary：一条事件（与 MemoryItem 并列）
+    date: str                       # YYYY-MM-DD —— 天文件
+    time: str                       # HH:MM —— 标题（人本地墙钟）
+    content: str
+    owner: str | None = None
+    source_conv: str | None = None
+    ts: str | None = None           # ISO-8601 UTC 时刻
+
+    @property
+    def links(self) -> list[WikiLink]   # 与 MemoryItem 同一套 wiki-link 解析
 ```
 
 ```python
@@ -155,12 +214,13 @@ MemoryIndex(
 Journal(path: Path | str)
 
 journal.append(action, *, category, name,
-               owner=None, source_conv=None, detail=None)
+               owner=None, source_conv=None, detail=None)   # wiki 变更
+journal.append_diary(*, date, time, owner=None, source_conv=None)  # diary 追加
 journal.entries() -> list[dict]
 ```
 
-追加式 JSONL 日志。`MemoryStore` 自动写它（`add` / `update` / `remove`），
-很少需要自己构造。行格式见
+追加式 JSONL 日志，两个原语共用。`MemoryStore` 自动写它（`add` / `update` /
+`remove`），`Diary.append` 写 `diary` 行 —— 很少需要自己构造。行格式见
 [磁盘格式](/zh/reference/file-format#journal-jsonl)。
 
 ## 分词

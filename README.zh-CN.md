@@ -26,7 +26,8 @@ pip install "wikimem[all]" # 不想纠结就装这个，可选增强全都带上
 
 ## 设计规则
 
-1. **markdown 文件是唯一事实源。** 每个分类一个文件（`memory/preferences.md`），
+1. **markdown 文件是唯一事实源。** 每个分类一个文件，位于 `category/`
+   （`memory/category/preferences.md`）；日记事件按天落在 `diary/` 下。
    每个 `##` 标题一个条目。可以直接阅读、编辑、diff —— 你的编辑器就是管理界面。
 2. **磁盘上没有不可读的真相。** 一切派生产物（索引、向量缓存）都可删除、可从文件
    重建。BM25 索引在启动时于内存中构建。

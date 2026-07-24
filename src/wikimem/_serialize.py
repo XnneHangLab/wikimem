@@ -1,10 +1,10 @@
 """Shared on-disk serialization: the metadata comment and atomic writes.
 
-The wiki storage layer (``category.md``) encodes provenance in an HTML comment
+The wiki storage layer (``category/*.md``) encodes provenance in an HTML comment
 and persists via a temp-file-plus-``os.replace``. Both pieces are pulled out
 here so there is exactly one parser and one renderer for the on-disk format —
-the seam a second storage primitive (the diary, ADR-0001) will reuse verbatim
-rather than reimplement, so the two formats cannot drift apart.
+the seam the diary primitive (ADR-0001) reuses verbatim rather than reimplement,
+so the two formats cannot drift apart.
 
 Path constants (e.g. journal filename, diary directory) do **not** belong here —
 those are store layout, not serialization format.

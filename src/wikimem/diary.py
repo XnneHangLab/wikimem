@@ -42,8 +42,7 @@ from .models import DiaryEntry
 from .store import JOURNAL_FILENAME
 
 # Layout, not serialization format (see wikimem._serialize): the diary's own
-# subdirectory under the store root, so it never collides with a ``*.md``
-# category file in the root.
+# subdirectory under the store root, parallel to ``category/`` for wiki files.
 DIARY_DIRNAME = "diary"
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -70,11 +69,11 @@ def _validate_time(time: str) -> str:
 
 
 def _parse_iso(value: str) -> datetime:
-    """Best-effort ISO-8601 → aware datetime; unparseable falls back to now (UTC)."""
+    """ISO-8601 → aware datetime. Naive values are treated as UTC; bad input raises."""
     try:
         dt = datetime.fromisoformat(value)
-    except ValueError:
-        return datetime.now(UTC)
+    except ValueError as exc:
+        raise ValueError(f"invalid diary ts {value!r}: expected ISO-8601") from exc
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
@@ -124,8 +123,13 @@ class Diary:
         if not text:
             raise ValueError("diary entry content is empty")
 
-        instant = _parse_iso(ts) if ts is not None else datetime.now(UTC)
-        if ts is None:
+        if ts is not None:
+            instant = _parse_iso(ts)
+            # Always persist a normalized UTC instant so hand-set values cannot
+            # leave non-ISO garbage (or mixed offsets) in the metadata comment.
+            ts = instant.astimezone(UTC).isoformat(timespec="seconds")
+        else:
+            instant = datetime.now(UTC)
             ts = instant.isoformat(timespec="seconds")
         if date is None or time is None:
             local = instant.astimezone(tz)  # tz=None → system local zone

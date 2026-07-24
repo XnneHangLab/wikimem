@@ -100,7 +100,8 @@ store.diary.append(
 **Append-only** — this is the only write. There is deliberately no edit or
 delete: entries are only ever added, and the journal records one `diary` line
 per append. Two events may share a minute; both are kept (unlike the wiki's
-last-wins). Raises `ValueError` on empty content or a malformed `date` / `time`.
+last-wins). Raises `ValueError` on empty content or a malformed `date` / `time`
+/ `ts`.
 
 ### Reads
 
@@ -109,9 +110,11 @@ last-wins). Raises `ValueError` on empty content or a malformed `date` / `time`.
 | `day(date)` | entries for one `YYYY-MM-DD`, in chronological (file) order |
 | `dates()` | every day that has a file, ascending |
 
-`ts` is stored UTC; `date` / `time` are the human-local day and wall clock. The
-inclusive multi-day `window(start, end)` range read is planned (Phase 3, the
-ground [ADR-0002](/reference/file-format)'s time gate builds on).
+`ts` is stored as a normalized UTC ISO-8601 second-precision string; `date` /
+`time` are the human-local day and wall clock. Raises `ValueError` on a
+malformed `ts` (no silent fallback to "now"). The inclusive multi-day
+`window(start, end)` range read is planned (Phase 3, the ground
+[ADR-0002](/adr/0002-time-range-retrieval)'s time gate builds on).
 
 ## Naming helpers
 

@@ -27,8 +27,9 @@ other — installing all of them changes nothing until you actually use them.
 
 ## Design rules
 
-1. **Markdown files are the only source of truth.** One file per category
-   (`memory/preferences.md`), one `##` heading per item. Read them, edit them,
+1. **Markdown files are the only source of truth.** One file per category under
+   `category/` (`memory/category/preferences.md`), one `##` heading per item;
+   diary events live as per-day files under `diary/`. Read them, edit them,
    diff them — your editor is the admin UI.
 2. **No unreadable truth on disk.** Every derived artifact (indexes, vector
    caches) is deletable and rebuildable from the files. The BM25 index lives in

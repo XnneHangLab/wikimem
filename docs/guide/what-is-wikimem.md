@@ -31,8 +31,9 @@ wiki-links deliver with a mechanical one-hop expansion.
 Everything in the library follows from these (fixed in XnneHangLab ADR-0001):
 
 1. **Markdown files are the only source of truth.** One file per category
-   (`memory/preferences.md`), one `##` heading per item. Read them, edit them,
-   diff them — your editor is the admin UI.
+   under `category/` (`memory/category/preferences.md`), one `##` heading per
+   item; diary events live as per-day files under `diary/`. Read them, edit
+   them, diff them — your editor is the admin UI.
 2. **No unreadable truth on disk.** Every derived artifact (indexes, vector
    caches) is deletable and rebuildable from the files. The BM25 index lives in
    memory, built at startup, never persisted.

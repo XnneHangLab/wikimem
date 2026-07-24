@@ -62,8 +62,9 @@ everything else:
 
 ```
 memory/
-├── preferences.md
-├── daily_life.md
+├── category/
+│   ├── preferences.md
+│   └── daily_life.md
 ├── journal.jsonl
 ├── vectors-000003.npy     ← float32 matrix, one row per item
 └── vectors.keys.jsonl     ← plain text: which row is which item, content-hashed

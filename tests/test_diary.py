@@ -98,6 +98,13 @@ def test_explicit_ts_is_stored_verbatim(diary: Diary):
     assert entry.ts == "2026-07-21T06:30:00+00:00"
 
 
+def test_explicit_ts_is_normalized_to_utc_seconds(diary: Diary):
+    # Offset form is accepted, but the on-disk metadata always stores UTC seconds.
+    diary.append("x", date="2026-07-21", time="14:30", ts="2026-07-21T14:30:00+08:00")
+    (entry,) = diary.day("2026-07-21")
+    assert entry.ts == "2026-07-21T06:30:00+00:00"
+
+
 def test_defaults_derive_date_and_time_from_ts_in_tz(diary: Diary):
     # 23:30 UTC is 07:30 the next day in +08:00 — the file lands on the local day.
     diary.append("跨日", ts="2026-07-21T23:30:00+00:00", tz=timezone(timedelta(hours=8)))
@@ -141,6 +148,8 @@ def test_validation_rejects_bad_input(diary: Diary):
         diary.append("x", date="2026-07-21", time="24:00")  # hour out of range
     with pytest.raises(ValueError):
         diary.append("x", date="2026-07-21", time="9:00")  # not HH:MM
+    with pytest.raises(ValueError):
+        diary.append("x", date="2026-07-21", time="14:30", ts="not-a-ts")
     with pytest.raises(ValueError):
         diary.day("not-a-date")
 
