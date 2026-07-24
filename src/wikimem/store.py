@@ -1,4 +1,4 @@
-"""Storage layer: one markdown file per category, ``##`` sections as items.
+"""Storage layer: one markdown file per category (under ``category/``), ``##`` sections as items.
 
 Serialization format (human-first — the file IS the database):
 
@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
 # Store layout, not serialization format — keep out of `_serialize`.
 JOURNAL_FILENAME = "journal.jsonl"
+# Wiki category files live under this subdir (parallel to the diary's ``diary/``)
+# so an unbounded, growing set of categories never clutters the store root.
+CATEGORY_DIRNAME = "category"
 
 _CATEGORY_RE = re.compile(r"^[a-z0-9_][a-z0-9_-]*$")
 _ITEM_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
@@ -56,7 +59,7 @@ def sanitize_item_name(name: str) -> str:
 
 
 class MemoryStore:
-    """Read/write access to a directory of category markdown files."""
+    """Read/write access to a store's ``category/`` directory of markdown files."""
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
@@ -89,9 +92,10 @@ class MemoryStore:
     # ---------------------------------------------------------------- reads
 
     def categories(self) -> list[str]:
-        if not self.root.exists():
+        cat_dir = self.root / CATEGORY_DIRNAME
+        if not cat_dir.exists():
             return []
-        return sorted(p.stem for p in self.root.glob("*.md"))
+        return sorted(p.stem for p in cat_dir.glob("*.md"))
 
     def items(self, category: str | None = None) -> list[MemoryItem]:
         cats = [category] if category is not None else self.categories()
@@ -158,7 +162,7 @@ class MemoryStore:
     # ------------------------------------------------------------ internals
 
     def _category_path(self, category: str) -> Path:
-        return self.root / f"{category}.md"
+        return self.root / CATEGORY_DIRNAME / f"{category}.md"
 
     def _read_category(self, category: str) -> list[MemoryItem]:
         path = self._category_path(category)
