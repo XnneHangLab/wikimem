@@ -102,6 +102,18 @@ def test_unusable_reply_is_fail_open(diary: Diary, reply: str):
     assert diary.dates() == []  # nothing written
 
 
+def test_append_errors_propagate(diary: Diary):
+    """A write failure must reach the host, not be swallowed.
+
+    fail-open covers the *model's* output, not the *disk*: if the store cannot be
+    written (full disk, no permission), the host's background job has to learn
+    about it. Pinned so nobody later wraps the append in a bare ``except``.
+    """
+    llm = FakeLLM('[{"content": "会写失败的一条。"}]')
+    with pytest.raises(ValueError):
+        memorize(diary, "turn", llm=llm, date="not-a-date")
+
+
 # ---------------------------------------------------------------- parse_entries
 
 
@@ -110,9 +122,17 @@ def test_parse_strips_code_fences():
     assert parse_entries('```\n[{"content": "x"}]\n```') == ["x"]
 
 
-def test_parse_accepts_bare_object_and_plain_strings():
+def test_parse_accepts_a_lone_object_as_one_entry():
+    # A missing array wrapper is a packaging slip; the {"content": …} shape is intact.
     assert parse_entries('{"content": "只有一条。"}') == ["只有一条。"]
-    assert parse_entries('["直接给字符串"]') == ["直接给字符串"]
+
+
+def test_parse_rejects_entries_that_are_not_content_objects():
+    # A bare-string array means the model ignored the required structure — we do
+    # not guess at it, or malformed memories get through. Mixed replies keep only
+    # the well-formed rows.
+    assert parse_entries('["直接给字符串"]') == []
+    assert parse_entries('[{"content": "好的"}, "裸字符串", 5, null]') == ["好的"]
 
 
 def test_parse_trims_and_drops_blanks():

@@ -36,8 +36,8 @@ _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 #: override wholesale (e.g. the Chinese variant in the docs); that one parameter
 #: is why the framework never needs a per-language matrix.
 DIARY_PROMPT = """\
-You are the diary-keeper behind {character}, a companion AI. Given a conversation
-turn, write down the moments worth remembering — as {character} would remember them.
+You are {character}, a companion AI, writing your own diary. Given a conversation
+turn, write down the moments you want to remember, the way you would remember them.
 
 Write each entry as ONE short paragraph (2-4 sentences), in your own voice, keeping
 scene, feeling, and fact in a single breath — a remembered moment, not a log line:
@@ -76,10 +76,13 @@ class LLM(Protocol):
 def parse_entries(raw: str) -> list[str]:
     """Extract entry contents from a model reply — never raises.
 
-    Tolerant on purpose: models wrap JSON in ``` fences, return a bare object
-    instead of an array, or answer with prose. Anything unusable yields ``[]``
-    (fail-open, like the embedding path) — a bad reply must not take down the
-    host's background job.
+    Tolerant of *packaging*, strict about *shape*. Models routinely wrap JSON in
+    ``` fences or hand back a lone ``{...}`` instead of a one-item array, so both
+    are unwrapped. But an entry must still be an object with a ``content``
+    string: a reply that ignores that structure ignored the prompt, and guessing
+    at what it meant would only let malformed memories through. Anything
+    unusable yields ``[]`` (fail-open, like the embedding path) — a bad reply
+    must not take down the host's background job.
     """
     text = _FENCE_RE.sub("", raw.strip())
     try:
@@ -92,7 +95,9 @@ def parse_entries(raw: str) -> list[str]:
         return []
     out: list[str] = []
     for row in data:
-        content = row.get("content") if isinstance(row, dict) else row
+        if not isinstance(row, dict):
+            continue
+        content = row.get("content")
         if isinstance(content, str) and content.strip():
             out.append(content.strip())
     return out

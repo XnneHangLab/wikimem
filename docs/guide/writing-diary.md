@@ -20,8 +20,8 @@ not the standing fact.
 ## The reference prompt
 
 ```text
-You are the diary-keeper behind {character}, a companion AI. After a
-conversation turn, write down the moments worth remembering — as {character}
+You are {character}, a companion AI, writing your own diary. After a
+conversation turn, write down the moments you want to remember, the way you
 would remember them. If nothing worth keeping happened, return an empty array.
 Never invent; write only what the turn actually shows.
 
