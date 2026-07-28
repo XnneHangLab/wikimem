@@ -117,6 +117,48 @@ malformed `ts` (no silent fallback to "now"). `window` is the O(days) file-set
 lookup [ADR-0002](/adr/0002-time-range-retrieval)'s time gate builds on — the
 diary offers only the range, no scoring.
 
+## Memorize
+
+```python
+memorize(
+    diary, turn, *,
+    llm,                          # your LLM (see the port below)
+    character="the assistant",    # interpolated into the prompt
+    prompt=None,                  # replaces DIARY_PROMPT wholesale
+    owner=None, source_conv=None, # provenance, passed to append
+    **append_kwargs,              # e.g. date= / time= / ts=
+) -> list[DiaryEntry]
+```
+
+Turns a conversation turn into diary entries with **one** LLM call: run the
+prompt, parse the reply, append. The framework owns prompt + parsing +
+validation; the host owns the LLM (ADR-0005). Returns the appended entries —
+`[]` when nothing was worth keeping, which is the common, healthy case.
+
+**Fail-open**: fenced JSON is unwrapped, a bare object is accepted, and prose or
+malformed JSON yields `[]` — never an exception. Guide, with the full prompt and
+wiring: [Writing the Diary](/guide/writing-diary).
+
+### The `LLM` port
+
+```python
+class LLM(Protocol):
+    def chat(self, messages: list[dict[str, str]]) -> str: ...
+```
+
+`chat_completion`-shaped and **synchronous** — the one protocol every provider
+and gateway speaks, and the smallest thing that can work. wikimem never
+constructs a client, holds a key, or picks a provider; you implement `chat()`
+over the client you already have. Async scheduling is the host's job: run
+`memorize()` in a background task so it never delays a turn.
+
+### `DIARY_PROMPT`
+
+The bundled reference prompt (English instructions; entries are written in the
+*conversation's* language). Override per call with `prompt=` — that one
+parameter is why wikimem ships a single default instead of a per-language
+matrix.
+
 ## Naming helpers
 
 ```python

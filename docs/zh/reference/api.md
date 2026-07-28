@@ -108,6 +108,42 @@ last-wins 相反）。内容为空，或 `date` / `time` / `ts` 格式非法时�
 `window` 是 [ADR-0002](/adr/0002-time-range-retrieval) 时间门控所依赖的
 O(天数) 文件集查找 —— 日记只给区间、不做打分。
 
+## Memorize
+
+```python
+memorize(
+    diary, turn, *,
+    llm,                          # 你的 LLM（见下面的端口）
+    character="the assistant",    # 会插进提示词
+    prompt=None,                  # 整份替换 DIARY_PROMPT
+    owner=None, source_conv=None, # 溯源信息，透传给 append
+    **append_kwargs,              # 如 date= / time= / ts=
+) -> list[DiaryEntry]
+```
+
+用**一次** LLM 调用把一轮对话变成日记条目：跑提示词 → 解析 → 落盘。提示词、解析、
+校验归框架；LLM 归宿主（ADR-0005）。返回已写入的条目 —— 没什么值得记时返回 `[]`，
+这是常见且健康的结果。
+
+**Fail-open**：会剥掉 ``` 代码围栏、接受单个对象；散文或坏 JSON 一律返回 `[]`，
+不抛异常。完整提示词与接法见[《写日记》](/zh/guide/writing-diary)。
+
+### `LLM` 端口
+
+```python
+class LLM(Protocol):
+    def chat(self, messages: list[dict[str, str]]) -> str: ...
+```
+
+`chat_completion` 形状、**同步** —— 所有 provider 与网关都认的那一种协议，也是能
+工作的最小接口。wikimem 不构造客户端、不持有 key、不挑 provider；你用手头已有的
+客户端实现 `chat()` 即可。异步调度归宿主：把 `memorize()` 丢进后台任务，别挡住对话。
+
+### `DIARY_PROMPT`
+
+随包提供的参考提示词（英文指令；条目用**对话本身**的语言书写）。用 `prompt=`
+按次覆盖 —— 正因为有这一个参数，框架只需发一份默认值，而不必维护「每语言一份」的矩阵。
+
 ## 命名助手
 
 ```python
