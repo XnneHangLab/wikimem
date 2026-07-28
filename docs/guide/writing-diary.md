@@ -5,10 +5,10 @@ vivid paragraph per moment, in the character's voice. wikimem **stores** those
 entries ([`Diary.append`](/reference/api#diary)); it never writes them. What to
 write, and how, is your host's memorize step — an LLM call you own.
 
-This page is a **reference prompt** for guiding that call: a good default, not
-shipped as code (prompts should evolve freely, not on a version boundary). Copy
-it, adapt the voice and language to your character, and wire it into your own
-extraction step.
+This page is the **reference prompt** for guiding that call, plus the smallest
+way to wire it up. The same text ships as
+[`wikimem.DIARY_PROMPT`](/reference/api#memorize) so the default is reproducible;
+you can copy it, adapt the voice, or replace it wholesale with `prompt=`.
 
 ## What belongs in a diary entry
 
@@ -47,6 +47,58 @@ Return a JSON array. The host stamps each entry with the date and time, so you
 write only the content:
 [ { "content": "…the vivid paragraph… [[links]]" } ]
 ```
+
+## Wiring it up
+
+`memorize()` runs that prompt for you — one LLM call, then parse and append.
+The LLM is **yours**: wikimem never builds a client, holds a key, or picks a
+provider. Implement one method, in the `chat_completion` shape every provider
+and gateway speaks:
+
+```python
+from wikimem import MemoryStore, memorize
+
+class MyLLM:                      # your client, your model, your retries
+    def chat(self, messages):
+        r = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
+        return r.choices[0].message.content
+
+store = MemoryStore("memory/")
+entries = memorize(
+    store.diary, turn_text,
+    llm=MyLLM(),
+    character="Elaina",           # interpolated into the prompt
+    owner="user:xnne",
+)                                 # -> [] when nothing was worth keeping
+```
+
+**Run it in the background.** Nothing here is async on purpose: `memorize()` is
+a plain blocking call, and the host decides *when* — schedule it after the turn
+(an `asyncio.to_thread`, a task queue, a worker) so it never delays a reply. One
+sync shape keeps the surface small; scheduling, retries, and timeouts stay in
+your `LLM`.
+
+### Another language, no second prompt
+
+`DIARY_PROMPT` is English but says *"write in the user's language"* — a Chinese
+turn produces a Chinese entry. If you want the instructions themselves in
+another language, pass one parameter:
+
+```python
+memorize(store.diary, turn, llm=MyLLM(), prompt=MY_CHINESE_PROMPT)
+```
+
+The Chinese reference text is on the [中文版 of this page](/zh/guide/writing-diary).
+That is why the framework ships **one** default instead of a per-language matrix:
+each extra language costs you a string and costs wikimem nothing.
+
+### If the model answers badly
+
+`memorize()` is fail-open, like the embedding path: fenced JSON is unwrapped, a
+bare object is accepted, and prose or malformed JSON yields `[]` rather than an
+exception — a bad reply must never take down your background job. An empty list
+is also the *normal* result; most turns hold nothing worth remembering, and the
+prompt says to return `[]` rather than invent.
 
 ## Notes for the host
 

@@ -5,9 +5,9 @@
 （[`Diary.append`](/zh/reference/api)），从不替你写。写什么、怎么写，是你
 宿主的 memorize 环节 —— 一次由你掌控的 LLM 调用。
 
-本页是那次调用的一份**参考提示词**：一个好用的默认值，但**只做文档、不作代码**
-（提示词应自由演进，不该绑在版本上）。复制它，把口吻和语言换成你的角色，接进你
-自己的抽取环节。
+本页是那次调用的**参考提示词**，外加最省事的接法。英文版同一份文案已作为
+[`wikimem.DIARY_PROMPT`](/zh/reference/api#memorize) 随包提供，默认值因此可复现；你可以
+复制、改口吻，或用 `prompt=` 整份替换（下面「换一种语言」）。
 
 ## 什么该进日记
 
@@ -42,6 +42,51 @@
 返回一个 JSON 数组。日期和时间由宿主 stamp，你只写正文：
 [ { "content": "…那段生动短文… [[links]]" } ]
 ```
+
+## 接线
+
+`memorize()` 帮你跑这段提示词：一次 LLM 调用，然后解析 + 落盘。**LLM 是你的** ——
+wikimem 不构造客户端、不持有 key、不挑 provider。你只实现一个方法，形状就是所有
+provider 和网关都认的 `chat_completion`：
+
+```python
+from wikimem import MemoryStore, memorize
+
+class MyLLM:                      # 你的客户端、你的模型、你的重试
+    def chat(self, messages):
+        r = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
+        return r.choices[0].message.content
+
+store = MemoryStore("memory/")
+entries = memorize(
+    store.diary, turn_text,
+    llm=MyLLM(),
+    character="伊蕾娜",            # 会插进提示词
+    owner="user:xnne",
+)                                 # -> 没什么值得记的就是 []
+```
+
+**放到后台跑。** 这里刻意不做 async：`memorize()` 就是一个普通阻塞调用，**何时
+跑由宿主决定** —— 一轮结束后丢进 `asyncio.to_thread` / 任务队列 / worker，别挡住
+回复。只保留一种同步形状，接口面才不会膨胀；调度、重试、超时都留在你的 `LLM` 里。
+
+### 换一种语言，不需要第二份提示词
+
+`DIARY_PROMPT` 是英文的，但里面写了**"用用户的语言书写"** —— 中文对话自然产出
+中文条目。若你想连**指令本身**也用中文（比如上面那份），传一个参数即可：
+
+```python
+memorize(store.diary, turn, llm=MyLLM(), prompt=上面那份中文提示词)
+```
+
+这正是框架只发一份默认值、而不是维护一张「每语言一份」矩阵的原因：多一种语言，
+对你只是多一个字符串，对 wikimem 是零成本。
+
+### 模型答得不好时
+
+`memorize()` 与 embedding 一样 **fail-open**：会剥掉 ``` 代码围栏、接受单个对象；
+散文或坏 JSON 一律返回 `[]` 而不是抛异常 —— 一次糟糕的回复不该弄挂你的后台任务。
+`[]` 同时也是**正常**结果：大多数轮次本就没什么值得记，提示词要求宁可返回空也不要编。
 
 ## 给宿主的注记
 
