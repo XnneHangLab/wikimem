@@ -31,7 +31,13 @@ TimeRange = tuple[str, str]
 # Relative day offsets. Only expressions with one obvious meaning are listed;
 # "the other day" / "recently" / 最近 are deliberately absent — they have no
 # defensible boundary, and inventing one would filter away real memories.
+#
+# CJK has no word boundaries, so one entry can be a substring of another
+# (前天 inside 大前天). Matching therefore runs **longest first** — see
+# ``_OFFSET_BY_LENGTH`` — which is what keeps 大前天 from silently resolving to
+# 前天's day, one day off.
 _OFFSET_WORDS: dict[str, int] = {
+    "大前天": -3,
     "前天": -2,
     "昨天": -1,
     "昨日": -1,
@@ -40,8 +46,12 @@ _OFFSET_WORDS: dict[str, int] = {
     "yesterday": -1,
     "明天": 1,
     "后天": 2,
+    "大后天": 3,
     "tomorrow": 1,
 }
+
+# Longest first: a longer expression is always the more specific reading.
+_OFFSET_BY_LENGTH: list[tuple[str, int]] = sorted(_OFFSET_WORDS.items(), key=lambda kv: -len(kv[0]))
 
 # 3天前 / 三天前 / 2 days ago …
 _CN_DIGITS = {
@@ -123,7 +133,18 @@ def parse_time_range(
         return None
     now = today if today is not None else _today(tz)
 
-    # Absolute dates first: they are the most specific reading available.
+    # ORDER MATTERS — the first match wins, so the tiers below run most-specific
+    # first. A new pattern must be inserted into the right tier, or it will be
+    # shadowed by (or will shadow) a broader one:
+    #
+    #   1. absolute dates   2026-07-21, 7月21号   — no ambiguity at all
+    #   2. weekday-in-week  上周三, 这周五         — before tier 3, which also
+    #                                              matches their 周/星期/礼拜
+    #   3. counted offsets  3天前, 2 days ago, 两周前
+    #   4. whole spans      上周, 这个月
+    #   5. single words     昨天, today            — longest-first within the tier
+    #
+    # Tier 1 first because it is the most specific reading available.
     m = _ISO_DATE_RE.search(text)
     if m:
         try:
@@ -138,8 +159,11 @@ def parse_time_range(
             candidate = _date(now.year, month, day)
         except ValueError:
             return None
-        # A bare 月/日 has no year; assume the most recent occurrence, since a
-        # diary is asked about the past far more often than the future.
+        # A bare 月/日 carries no year, so it is resolved to the most recent
+        # occurrence *that has already happened* — a diary is asked about what
+        # happened, not what will. Concretely: only a date still ahead in this
+        # calendar year rolls back a year, so on 2026-01-02 "7月21号" means
+        # 2025-07-21, not next July.
         if candidate > now:
             try:
                 candidate = _date(now.year - 1, month, day)
@@ -187,10 +211,11 @@ def parse_time_range(
         return _iso(first), _iso(next_first - timedelta(days=1))
 
     # Single-word day offsets last, so the more specific readings above always
-    # win. ASCII words need word boundaries ("today" must not fire inside
-    # "todays_plan"); CJK has no boundaries, and these words are unambiguous.
+    # win. Within this table, longest first (大前天 before 前天). ASCII words need
+    # word boundaries ("today" must not fire inside "todays_plan"); CJK has none,
+    # which is exactly why the length ordering matters.
     lowered = text.lower()
-    for word, offset in _OFFSET_WORDS.items():
+    for word, offset in _OFFSET_BY_LENGTH:
         hit = re.search(rf"\b{word}\b", lowered) is not None if word.isascii() else word in text
         if hit:
             return _day(now + timedelta(days=offset))

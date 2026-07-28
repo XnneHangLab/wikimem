@@ -48,6 +48,24 @@ def test_single_day_expressions(text: str, expected: str):
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
+        ("大前天", "2026-07-21"),  # -3, NOT 前天's -2
+        ("大前天晚上我吃了什么", "2026-07-21"),
+        ("大后天", "2026-07-27"),  # +3, NOT 后天's +2
+    ],
+)
+def test_longer_offset_word_wins_over_its_substring(text: str, expected: str):
+    """CJK has no word boundaries, so 前天 lives inside 大前天.
+
+    Matching runs longest-first; without it these resolve one day off — and a
+    wrong window silently hides the right memory, which is the one failure this
+    module exists to prevent.
+    """
+    assert parse(text) == (expected, expected)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
         ("2026-07-21 那天", "2026-07-21"),
         ("2026/07/21", "2026-07-21"),
         ("2026-7-1 的记录", "2026-07-01"),
