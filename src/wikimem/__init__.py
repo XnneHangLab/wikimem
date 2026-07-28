@@ -7,6 +7,7 @@ from .memorize import DIARY_PROMPT, LLM, memorize
 from .models import DiaryEntry, MemoryItem, WikiLink
 from .retrieval import MemoryIndex, RetrievalResult, RetrievedItem
 from .store import MemoryStore, sanitize_item_name, validate_category
+from .timeparse import TimeRange, parse_time_range
 from .tokenize import est_tokens, tokenize
 
 __all__ = [
@@ -20,9 +21,11 @@ __all__ = [
     "MemoryStore",
     "RetrievalResult",
     "RetrievedItem",
+    "TimeRange",
     "WikiLink",
     "est_tokens",
     "memorize",
+    "parse_time_range",
     "parse_wiki_links",
     "sanitize_item_name",
     "tokenize",
