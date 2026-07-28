@@ -20,14 +20,44 @@ from __future__ import annotations
 import math
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import date as _date
+from datetime import timedelta, tzinfo
 from pathlib import Path
 
-from .models import MemoryItem
+from .models import DiaryEntry, MemoryItem
 from .store import MemoryStore
+from .timeparse import TimeRange, parse_time_range
 from .tokenize import est_tokens, tokenize
 
 _K1 = 1.5
 _B = 0.75
+
+#: Category shown for diary entries that surface through retrieval. Diary files
+#: live in ``diary/``, not ``category/``, so this never collides with a real
+#: category file — it is a display/dedup key, not a place on disk.
+DIARY_CATEGORY = "diary"
+
+
+def _entry_as_item(entry: DiaryEntry) -> MemoryItem:
+    """View a diary entry as an item, so one pipeline ranks both layers.
+
+    Both primitives are the same ``##``-block shape (ADR-0001) — an event's
+    "name" is simply its time. Adapting here is what lets ADR-0002's promise be
+    literal: BM25, min-max fusion, the budget cut, and explain all keep working
+    untouched, and a ``[[work:current-job]]`` written inside a diary entry still
+    expands to the wiki item it points at.
+
+    (The rendered name contains ``:``, so a diary entry cannot itself be a
+    wiki-link *target* — pointing at diary entries was left open in ADR-0001.)
+    """
+    return MemoryItem(
+        category=DIARY_CATEGORY,
+        name=f"{entry.date} {entry.time}",
+        content=entry.content,
+        owner=entry.owner,
+        source_conv=entry.source_conv,
+        ts=entry.ts,
+    )
 
 
 @dataclass
@@ -52,6 +82,10 @@ class RetrievalResult:
     embedding_used: bool = False
     dropped: list[RetrievedItem] = field(default_factory=list)  # populated when explain=True
     unresolved_links: list[str] = field(default_factory=list)  # links whose target is missing
+    # Time gate (ADR-0002): which diary window was applied, and where it came from.
+    time_range: TimeRange | None = None
+    time_range_source: str | None = None  # "explicit" (caller) | "parsed" (regex fast path)
+    time_range_widened: bool = False  # window held nothing, so it was relaxed by a day
 
 
 def _minmax(raw: dict[int, float]) -> dict[int, float]:
@@ -132,18 +166,75 @@ class MemoryIndex:
 
     # ---------------------------------------------------------------- search
 
-    def _bm25(self, query_terms: list[str], counts: Counter[str], doc_len: int) -> float:
-        n = len(self._docs)
+    def _bm25(
+        self,
+        query_terms: list[str],
+        counts: Counter[str],
+        doc_len: int,
+        *,
+        n: int | None = None,
+        df: Counter[str] | None = None,
+        avg_len: float | None = None,
+    ) -> float:
+        """BM25 for one document. Corpus stats default to the cached wiki index.
+
+        They are overridable because a time-gated query scores wiki items and
+        windowed diary entries **in the same pass**: BM25 is corpus-relative, so
+        both must see the same ``n`` / ``df`` / ``avg_len`` or their scores are
+        not comparable and merging them would be meaningless.
+        """
+        n = len(self._docs) if n is None else n
+        df = self._df if df is None else df
+        avg_len = self._avg_len if avg_len is None else avg_len
         score = 0.0
         for term in query_terms:
             tf = counts.get(term, 0)
             if not tf:
                 continue
-            df = self._df[term]
-            idf = math.log(1.0 + (n - df + 0.5) / (df + 0.5))
-            norm = tf * (_K1 + 1) / (tf + _K1 * (1 - _B + _B * doc_len / (self._avg_len or 1.0)))
+            idf = math.log(1.0 + (n - df[term] + 0.5) / (df[term] + 0.5))
+            norm = tf * (_K1 + 1) / (tf + _K1 * (1 - _B + _B * doc_len / (avg_len or 1.0)))
             score += idf * norm
         return score
+
+    def _diary_docs(self, window: TimeRange) -> list[tuple[MemoryItem, Counter[str], int]]:
+        """Windowed diary entries, tokenized like wiki docs.
+
+        Built per query rather than cached: the candidate set depends on the
+        window, and a window is only a handful of day files (the filename *is*
+        the time index), so there is nothing worth persisting.
+        """
+        docs: list[tuple[MemoryItem, Counter[str], int]] = []
+        for entry in self.store.diary.window(*window):
+            item = _entry_as_item(entry)
+            tokens = tokenize(f"{item.name}\n{item.content}", use_jieba=self._use_jieba)
+            docs.append((item, Counter(tokens), len(tokens)))
+        return docs
+
+    def _resolve_window(
+        self, query: str, time_range: TimeRange | None, tz: tzinfo | None
+    ) -> tuple[TimeRange | None, str | None]:
+        """The window to gate on, and where it came from.
+
+        Two ways in (ADR-0002 §1): the caller passes one — the exit of a host's
+        intent recognition or tool call — or the regex fast path finds one in the
+        query. Nothing else: regex is the floor, the host's LLM is the ceiling.
+        """
+        if time_range is not None:
+            return time_range, "explicit"
+        parsed = parse_time_range(query, tz=tz)
+        return (parsed, "parsed") if parsed is not None else (None, None)
+
+    @staticmethod
+    def _widen(window: TimeRange, days: int = 1) -> TimeRange:
+        """Relax a window by a day on each side (ADR-0002 §4).
+
+        An empty window usually means the boundary was slightly off — a late
+        night filed under the next day, a fuzzy "上周中午". Better to look a day
+        wider than to answer "I don't remember" because of one parse.
+        """
+        start = _date.fromisoformat(window[0]) - timedelta(days=days)
+        end = _date.fromisoformat(window[1]) + timedelta(days=days)
+        return start.isoformat(), end.isoformat()
 
     def _cosine_scores(self, query: str, top_k: int) -> dict[int, float] | None:
         """Row -> cosine score via the vector index; None when the path is off/degraded."""
@@ -165,6 +256,8 @@ class MemoryIndex:
         budget_tokens: int | None = None,
         expand_links: bool = True,
         explain: bool = False,
+        time_range: TimeRange | None = None,
+        tz: tzinfo | None = None,
     ) -> RetrievalResult:
         """Rank items, expand each hit's wiki-links one hop, trim to budget.
 
@@ -173,16 +266,69 @@ class MemoryIndex:
         ``fusion_weight``. Injection order: each hit is followed by its
         resolved link targets (deduplicated globally). Budget trimming is a
         prefix cut — the first entry is always kept.
+
+        **Time gate** (ADR-0002): ``time_range`` is an inclusive
+        ``("YYYY-MM-DD", "YYYY-MM-DD")`` pair; when omitted, the regex fast path
+        looks for one in ``query`` (``tz`` picks the calendar it resolves
+        against). A window brings the diary entries of those days into the same
+        ranking as the wiki — time **filters candidates**, it never votes on
+        them, so the fusion formula is untouched. Wiki items keep competing
+        unfiltered (§7: the timeline belongs to the diary). With no window,
+        behaviour is exactly as before.
         """
         self._ensure_fresh()
         query_terms = tokenize(query, use_jieba=self._use_jieba)
         result = RetrievalResult(items=[], budget_tokens=budget_tokens, budget_used=0)
-        if not self._docs or (not query_terms and self._vec_index is None):
+
+        window, source = self._resolve_window(query, time_range, tz)
+        diary_docs: list[tuple[MemoryItem, Counter[str], int]] = []
+        if window is not None:
+            result.time_range, result.time_range_source = window, source
+            diary_docs = self._diary_docs(window)
+            if not diary_docs:  # nothing in the window — relax rather than come back empty
+                widened = self._widen(window)
+                diary_docs = self._diary_docs(widened)
+                if diary_docs:
+                    result.time_range, result.time_range_widened = widened, True
+
+        if not self._docs and not diary_docs:
             return result
+        if not query_terms:
+            # Degenerate case (§3): no usable query, but a window — answer with
+            # the window itself, most recent first. This is "recall the diary"
+            # working on its own, without time ever becoming a scoring path.
+            if diary_docs:
+                return self._finish(
+                    [
+                        RetrievedItem(
+                            item=item,
+                            source="hit",
+                            tokens_est=est_tokens(f"{item.name}\n{item.content}"),
+                        )
+                        for item, _, _ in sorted(diary_docs, key=lambda d: d[0].name, reverse=True)
+                    ][:limit],
+                    result,
+                    budget_tokens,
+                )
+            if self._vec_index is None:
+                return result
+
+        # Wiki rows keep index 0..len(self._docs)-1 so they stay aligned with the
+        # vector index; diary rows are appended after them.
+        docs = self._docs + diary_docs
+        n, df, avg_len = len(self._docs), self._df, self._avg_len
+        if diary_docs:
+            df = self._df.copy()
+            total_len = self._avg_len * len(self._docs)
+            for _, counts, doc_len in diary_docs:
+                df.update(counts.keys())
+                total_len += doc_len
+            n = len(docs)
+            avg_len = total_len / n if n else 0.0
 
         bm25_raw: dict[int, float] = {}
-        for row, (_, counts, doc_len) in enumerate(self._docs):
-            score = self._bm25(query_terms, counts, doc_len)
+        for row, (_, counts, doc_len) in enumerate(docs):
+            score = self._bm25(query_terms, counts, doc_len, n=n, df=df, avg_len=avg_len)
             if score > 0.0:
                 bm25_raw[row] = score
 
@@ -192,9 +338,19 @@ class MemoryIndex:
             bm25_norm = _minmax(bm25_raw)
             cos_norm = _minmax(cos_raw)
             candidates = set(bm25_raw) | set(cos_raw)
+            # Diary rows sit outside the vector cache, so they have no cosine
+            # signal to fuse — they rank on normalized BM25, exactly as every
+            # row does when no embedder is configured. Folding in a zero cosine
+            # instead would scale them down by (1 - fusion_weight) and bury the
+            # diary whenever embedding is on.
+            embedded = len(self._docs)
             fused = {
-                row: self._fusion_weight * bm25_norm.get(row, 0.0)
-                + (1 - self._fusion_weight) * cos_norm.get(row, 0.0)
+                row: (
+                    self._fusion_weight * bm25_norm.get(row, 0.0)
+                    + (1 - self._fusion_weight) * cos_norm.get(row, 0.0)
+                    if row < embedded
+                    else bm25_norm.get(row, 0.0)
+                )
                 for row in candidates
             }
             ranking = [(row, fused[row]) for row in candidates if fused[row] > 0.0]
@@ -205,7 +361,7 @@ class MemoryIndex:
 
         scored: list[RetrievedItem] = []
         for row, rank_score in ranking:
-            item, counts, _ = self._docs[row]
+            item, counts, _ = docs[row]
             scored.append(
                 RetrievedItem(
                     item=item,
@@ -217,8 +373,20 @@ class MemoryIndex:
                     tokens_est=est_tokens(f"{item.name}\n{item.content}"),
                 )
             )
+        return self._finish(
+            scored, result, budget_tokens, expand_links=expand_links, explain=explain
+        )
 
-        # One-hop link expansion, dedup across the whole sequence.
+    def _finish(
+        self,
+        scored: list[RetrievedItem],
+        result: RetrievalResult,
+        budget_tokens: int | None,
+        *,
+        expand_links: bool = False,
+        explain: bool = False,
+    ) -> RetrievalResult:
+        """Expand links one hop, then trim to budget — shared by every path."""
         sequence: list[RetrievedItem] = []
         seen: set[tuple[str, str]] = set()
         for hit in scored:
