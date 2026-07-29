@@ -177,3 +177,27 @@ def test_diary_entry_carries_its_provenance(tmp_path: Path):
     assert hit.item.name == "2026-07-24 09:00"
     assert hit.item.owner == "user:xnne"
     assert hit.item.ts is not None
+
+
+def test_reversed_explicit_window_is_normalized(store: MemoryStore):
+    """A reversed pair is swapped at the boundary, once.
+
+    ``Diary.window`` tolerates one on its own, so results were already correct —
+    but an un-normalized pair reports backwards in ``explain`` and makes the
+    widen fallback *shrink* the window instead of growing it.
+    """
+    index = MemoryIndex(store)
+    result = index.retrieve("拉面", time_range=("2026-07-23", "2026-07-21"))
+    assert result.time_range == ("2026-07-21", "2026-07-23")
+
+
+def test_reversed_empty_window_still_widens_outward(store: MemoryStore):
+    # Reversed 07-21..07-20 normalizes to 07-20..07-21, which is empty, so the
+    # fallback must reach *outward* to 07-19..07-22 and pick up the 07-22
+    # entries. Un-normalized, _widen would have yielded 07-20..07-21 — an
+    # inward collapse that stays empty, silently skipping the fallback.
+    index = MemoryIndex(store)
+    result = index.retrieve("", time_range=("2026-07-21", "2026-07-20"))
+    assert result.time_range_widened is True
+    assert result.time_range == ("2026-07-19", "2026-07-22")
+    assert result.items  # the 07-22 entries are reachable again
