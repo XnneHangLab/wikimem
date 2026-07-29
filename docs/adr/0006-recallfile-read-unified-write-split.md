@@ -18,7 +18,27 @@
 
 ### 1. RecallFile 是**读侧**的统一抽象
 
-**RecallFile = 一个装着 `##` 块的 markdown 文件；每个 `##` 块是一条 RecallEntry（L2 可召回单元）。** `category/preferences.md` 与 `diary/2026-07-21.md` 都是 RecallFile —— 沿用 memU ADR-0006 的词汇，因为指的确实是同一个东西。
+**RecallFile = 一个装着 `##` 块的 markdown 文件；每个 `##` 块是一条 RecallItem（L2 可召回单元）。** `category/preferences.md` 与 `diary/2026-07-21.md` 都是 RecallFile。
+
+### 1.1 命名：按**角色**命名，不按**内容类型**
+
+术语从 `Category` / `MemoryItem` 迁移到 **`RecallFile` / `RecallItem`**：
+
+- **"memory" 是内容类型，不是角色。** 将来的 skill 同样是"文件 + 可召回块"，但它**不是记忆**；memory 自身也可能再细分。检索层关心的只是"这块能不能被召回"，所以该用 **Recall** 命名 —— 一个能同时容纳 memory / diary / skill / 未定之物的抽象。
+- **用 `RecallItem` 而非 memU 的 `RecallEntry`**：我们已有 `DiaryEntry`，`RecallEntry` 与之并存会分不清；而 `item` 是本项目一以贯之的词（`items()`、`item.name`、"one `##` heading per item"）。同一个概念，取更贴合既有词汇的那个词。
+- **`Category` 不是被 `RecallFile` "替换"，而是降级为一种 kind。** 因为按本 ADR，diary 文件也是 RecallFile。准确说法是：**一条 RecallFile 有它的 kind**（状态/wiki，或事件/diary），"category" 作为**通用术语**退休，只在指"状态层那种 RecallFile"时才出现。
+
+### 1.2 迁移边界（哪些动、哪些不动）
+
+| | 动不动 | 说明 |
+|---|---|---|
+| 类型名 `MemoryItem` → `RecallItem` | ✅ 动 | 纯改名；pre-alpha（`0.1.0.dev0`）正是最便宜的时机 |
+| 概念/文档词汇 `category` → RecallFile | ✅ 动 | EN + zh 全量 |
+| **磁盘目录 `category/` 与 `diary/`** | ❌ **不动** | 目录名描述的是 **kind**，两者都是 RecallFile。改名对既有 store 是一次无收益的数据迁移 |
+| **wiki-link 语法 `[[preferences:likes-the-sea]]`** | ❌ **不动** | 链接里写的是**文件实名**，从来不含 "category" 这个词，因此**磁盘格式零破坏** |
+| `journal.jsonl` 字段、向量缓存键 | ⚠️ 实现期定 | 都含 `category` 字段；改名会让既有 journal/缓存读不上号，需兼容或显式作废（缓存本就可删可重建） |
+
+改名是**一次性、机械、有测试护栏**的清扫，应当作为**独立 PR**，不与功能改动混在一起。
 
 检索层**只认 RecallFile**，不认它来自哪个原语：一个索引、一个排序、一份 token 预算。ADR-0002 Phase 2 的适配器**正式化**为这个一等概念，而不再是内部 shim。
 
@@ -77,12 +97,15 @@
 
 **负面 / 代价**
 
-- 新增一个一等概念（RecallFile）与相应文档/词汇迁移成本；`MemoryItem` 是否更名留待实现期（改名会动公开契约，ADR-0004）。
+- 一次公开契约改名（`MemoryItem` → `RecallItem`，ADR-0004 意义上的破坏性变更）+ 全量文档词汇迁移。pre-alpha 阶段做最便宜，但**再晚做就会越来越贵**。
+- 词汇过渡期内，"category" 一词在旧文档/旧 journal 里仍会出现，读者需要知道它现在指"状态层那种 RecallFile"。
 - 向量缓存随日记单调增长（wiki 是有界的，日记不是）；memmap 分层 + 10k 以上二值量化已为此设计，但需在文档里写明增长预期与"删掉即可重建"的兜底。
 - "日记参与无窗口检索"被推迟到衰减项之后，短期内无时间意图的 query 仍召不回日记。
 
 **实施**
 
-1. 形式化 RecallFile（把 ADR-0002 Phase 2 的适配器提升为一等概念）+ 文档词汇同步（EN/zh）。
-2. `rebuild()` 把日记条目一并喂给 `VectorCache.sync()`；撤掉"日记按 BM25 排"的权宜规则；补增长与成本说明。
-3. recency 衰减项（ADR-0002 §6）与"日记参与无窗口检索"作为**同一个**里程碑，由 bench 数据决定默认值。
+1. **改名清扫（独立 PR）**：`MemoryItem` → `RecallItem`，文档词汇 `category` → RecallFile（EN/zh）。目录名与 wiki-link 语法**不动**；`journal` 字段与向量缓存键的兼容策略实现期定。
+2. **形式化 RecallFile**：把 ADR-0002 Phase 2 的适配器提升为一等概念。
+   顺带需要定的一件事：Phase 2 目前把日记条目表示为 `category="diary"` + `name="2026-07-21 14:30"`；按 RecallFile 语义，更贴切的是 **RecallFile = `2026-07-21`（那个日文件）、item = `14:30`**。后者概念上更正确，代价是列举 RecallFile 时会看到"一天一个文件"（本来也确实如此）。
+3. `rebuild()` 把日记条目一并喂给 `VectorCache.sync()`；撤掉"日记按 BM25 排"的权宜规则；补增长与成本说明。
+4. recency 衰减项（ADR-0002 §6）与"日记参与无窗口检索"作为**同一个**里程碑，由 bench 数据决定默认值。
