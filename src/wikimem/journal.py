@@ -21,7 +21,7 @@ class Journal:
         self,
         action: str,
         *,
-        category: str,
+        file: str,
         name: str,
         owner: str | None = None,
         source_conv: str | None = None,
@@ -30,7 +30,7 @@ class Journal:
         entry: dict[str, Any] = {
             "ts": now_iso(),
             "action": action,
-            "category": category,
+            "file": file,
             "item": name,
         }
         if owner is not None:
@@ -53,7 +53,7 @@ class Journal:
 
         Diary shares one journal with wiki but has its own line shape:
         ``action`` is ``"diary"`` and the target is ``date`` + ``time`` rather
-        than ``category`` + ``item`` — a reader tells the two apart by
+        than ``file`` + ``item`` — a reader tells the two apart by
         ``action``.
         """
         entry: dict[str, Any] = {

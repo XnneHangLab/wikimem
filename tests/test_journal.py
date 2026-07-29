@@ -14,7 +14,7 @@ def test_every_mutation_appends_one_json_line(tmp_path):
     assert [entry["action"] for entry in lines] == ["add", "update", "remove"]
     assert all(entry["ts"] for entry in lines)
     assert lines[0]["owner"] == "user:xnne"
-    assert lines[0]["category"] == "preferences"
+    assert lines[0]["file"] == "preferences"
     assert lines[0]["item"] == "likes-the-sea"
 
 
@@ -26,7 +26,7 @@ def test_entries_reads_back(tmp_path):
     assert entries[0]["item"] == "中文条目"
 
 
-def test_journal_is_not_a_category(tmp_path):
+def test_journal_is_not_a_file(tmp_path):
     store = MemoryStore(tmp_path / "memory")
     store.add("notes", "n", "x")
-    assert store.categories() == ["notes"]
+    assert store.files() == ["notes"]

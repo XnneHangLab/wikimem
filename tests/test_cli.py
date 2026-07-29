@@ -33,7 +33,7 @@ def run(store_dir, *argv, jieba_off=True):
 # ------------------------------------------------------------------------ ls
 
 
-def test_ls_lists_categories_with_counts(store_dir, capsys):
+def test_ls_lists_files_with_counts(store_dir, capsys):
     assert run(store_dir, "ls") == 0
     out = capsys.readouterr().out
     assert "daily_life" in out
@@ -61,7 +61,7 @@ def test_store_env_var_is_default(store_dir, capsys, monkeypatch):
 # ---------------------------------------------------------------------- show
 
 
-def test_show_category_renders_items_and_meta(store_dir, capsys):
+def test_show_file_renders_items_and_meta(store_dir, capsys):
     assert run(store_dir, "show", "preferences") == 0
     out = capsys.readouterr().out
     assert "# preferences" in out
@@ -78,11 +78,11 @@ def test_show_single_item(store_dir, capsys):
     assert "likes-the-sea" not in out
 
 
-def test_show_missing_item_and_category(store_dir, capsys):
+def test_show_missing_item_and_file(store_dir, capsys):
     assert run(store_dir, "show", "preferences", "nope") == 1
     assert "no item" in capsys.readouterr().err
     assert run(store_dir, "show", "nope") == 1
-    assert "no such category" in capsys.readouterr().err
+    assert "no such file" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------- grep

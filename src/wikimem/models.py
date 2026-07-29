@@ -1,7 +1,7 @@
 """Core data types.
 
-An item is the retrieval unit (L2 in the resource/category/item layering):
-one ``##`` section inside a category markdown file, carrying free-text
+An item is the retrieval unit (L2 in the resource / RecallFile / item
+layering): one ``##`` section inside a RecallFile, carrying free-text
 content, optional provenance metadata, and in-content wiki-links.
 """
 
@@ -12,25 +12,25 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class WikiLink:
-    """An in-content cross-category reference: ``[[category:item-name]]``."""
+    """An in-content cross-file reference: ``[[file:item-name]]``."""
 
-    category: str
+    file: str
     name: str
 
     def render(self) -> str:
-        return f"[[{self.category}:{self.name}]]"
+        return f"[[{self.file}:{self.name}]]"
 
 
 @dataclass
-class MemoryItem:
-    """One memory entry inside a category file.
+class RecallItem:
+    """One item inside a RecallFile.
 
     ``ts`` is an ISO-8601 UTC timestamp string. ``owner`` / ``source_conv`` /
     ``ts`` are ``None`` for items that were hand-written into the file without
     a metadata comment — tolerated by design: the files are user-editable.
     """
 
-    category: str
+    file: str
     name: str
     content: str
     owner: str | None = None
@@ -45,10 +45,10 @@ class MemoryItem:
 
 
 @dataclass
-class DiaryEntry:
+class DiaryItem:
     """One event in the diary (ADR-0001): the *event-stream* primitive.
 
-    Where a :class:`MemoryItem` is state ("what is true now", rewritten in
+    Where a :class:`RecallItem` is state ("what is true now", rewritten in
     place), a diary entry is an event ("what happened, and when"). It lives at
     ``## HH:MM`` inside a per-day file ``diary/YYYY-MM-DD.md``; ``date`` and
     ``time`` are that file's name and that heading, kept as strings because

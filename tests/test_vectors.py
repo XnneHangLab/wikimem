@@ -119,9 +119,9 @@ def test_cache_files_are_deletable(store, tmp_path):
     assert fresh.texts_embedded == 4  # 3 items + 1 query
 
 
-def test_vector_files_are_not_categories(store):
+def test_vector_files_are_not_wiki_files(store):
     MemoryIndex(store, use_jieba=False, embedder=StubEmbedder()).retrieve("咖啡")
-    assert set(store.categories()) == {"preferences", "career"}
+    assert set(store.files()) == {"preferences", "career"}
 
 
 def test_binary_tier_matches_bruteforce_top1():

@@ -42,6 +42,7 @@
 | | 动不动 | 说明 |
 |---|---|---|
 | 类型名 `MemoryItem` → `RecallItem`、`DiaryEntry` → `DiaryItem` | ✅ 动 | 纯改名；pre-alpha（`0.1.0.dev0`）正是最便宜的时机 |
+| 字段与方法：`.category` → **`.file`**、`categories()` → `files()`、`validate_category()` → `validate_file()` | ✅ 动 | 实现期定：`file` 是 `RecallFile` 的自然简写，`item.file == "preferences"` 读起来顺；比 `.recall_file` 短，也避免在 `WikiLink` 上啰嗦 |
 | 概念/文档词汇 `category` → RecallFile | ✅ 动 | EN + zh 全量 |
 | **磁盘目录 `category/` → `wiki/`** | ✅ **动** | "category" 这个通用术语既然退休，目录就不该继续叫它。两个目录命名的是 **kind**，而我们的 kind 名一直是 **wiki** 与 **diary**（ADR-0001 通篇如此），`wiki/` + `diary/` 对称且与文档一致 |
 | **wiki-link 语法 `[[preferences:likes-the-sea]]`** | ❌ **不动** | 链接里写的是**文件实名**，从来不含 "category" 这个词（文档里的 `[[category:item]]` 只是占位符），因此**链接与既有内容零破坏** |

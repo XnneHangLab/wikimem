@@ -1,6 +1,6 @@
 import pytest
 
-from wikimem import MemoryStore, sanitize_item_name, validate_category
+from wikimem import MemoryStore, sanitize_item_name, validate_file
 
 
 @pytest.fixture()
@@ -21,12 +21,12 @@ def test_add_and_get_roundtrip(store):
     assert item.owner == "user:xnne"
     assert item.source_conv == "conv_20260710"
     assert item.ts  # stamped automatically
-    assert [link.category for link in item.links] == ["daily_life"]
+    assert [link.file for link in item.links] == ["daily_life"]
 
 
 def test_file_is_human_readable_markdown(store, tmp_path):
     store.add("preferences", "likes-the-sea", "喜欢海。", owner="user:xnne")
-    text = (tmp_path / "memory" / "category" / "preferences.md").read_text(encoding="utf-8")
+    text = (tmp_path / "memory" / "wiki" / "preferences.md").read_text(encoding="utf-8")
     assert text.startswith("# preferences\n")
     assert "## likes-the-sea" in text
     assert "<!-- wikimem: owner=user:xnne" in text
@@ -50,14 +50,14 @@ def test_remove(store):
 def test_removing_last_item_removes_file(store, tmp_path):
     store.add("preferences", "only-one", "x")
     store.remove("preferences", "only-one")
-    assert not (tmp_path / "memory" / "category" / "preferences.md").exists()
-    assert store.categories() == []
+    assert not (tmp_path / "memory" / "wiki" / "preferences.md").exists()
+    assert store.files() == []
 
 
 def test_hand_edited_item_without_metadata_is_tolerated(store, tmp_path):
-    cat_dir = tmp_path / "memory" / "category"
-    cat_dir.mkdir(parents=True)
-    (cat_dir / "notes.md").write_text(
+    wiki_dir = tmp_path / "memory" / "wiki"
+    wiki_dir.mkdir(parents=True)
+    (wiki_dir / "notes.md").write_text(
         "# notes\n\n## 手写条目\n\n用户直接在文件里写的，没有元数据注释。\n",
         encoding="utf-8",
     )
@@ -68,9 +68,9 @@ def test_hand_edited_item_without_metadata_is_tolerated(store, tmp_path):
 
 
 def test_duplicate_headings_last_wins(store, tmp_path):
-    cat_dir = tmp_path / "memory" / "category"
-    cat_dir.mkdir(parents=True)
-    (cat_dir / "notes.md").write_text(
+    wiki_dir = tmp_path / "memory" / "wiki"
+    wiki_dir.mkdir(parents=True)
+    (wiki_dir / "notes.md").write_text(
         "# notes\n\n## same\n\nold\n\n## same\n\nnew\n",
         encoding="utf-8",
     )
@@ -87,17 +87,17 @@ def test_roundtrip_preserves_hand_written_items(store):
     assert names == ["第一条", "第二条"]
 
 
-def test_categories_listing(store):
+def test_files_listing(store):
     store.add("preferences", "a", "x")
     store.add("daily_life", "b", "y")
-    assert store.categories() == ["daily_life", "preferences"]
+    assert store.files() == ["daily_life", "preferences"]
 
 
-def test_category_validation():
+def test_file_validation():
     for bad in ("Preferences", "日常", "has space", "-lead", ""):
         with pytest.raises(ValueError):
-            validate_category(bad)
-    assert validate_category("daily_life-2") == "daily_life-2"
+            validate_file(bad)
+    assert validate_file("daily_life-2") == "daily_life-2"
 
 
 def test_item_name_sanitization():

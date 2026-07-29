@@ -24,7 +24,7 @@ from datetime import date as _date
 from datetime import timedelta, tzinfo
 from pathlib import Path
 
-from .models import DiaryEntry, MemoryItem
+from .models import DiaryItem, RecallItem
 from .store import MemoryStore
 from .timeparse import TimeRange, parse_time_range
 from .tokenize import est_tokens, tokenize
@@ -33,12 +33,12 @@ _K1 = 1.5
 _B = 0.75
 
 #: Category shown for diary entries that surface through retrieval. Diary files
-#: live in ``diary/``, not ``category/``, so this never collides with a real
-#: category file — it is a display/dedup key, not a place on disk.
-DIARY_CATEGORY = "diary"
+#: live in ``diary/``, not ``wiki/``, so this never collides with a real
+#: wiki RecallFile — it is a display/dedup key, not a place on disk.
+DIARY_FILE = "diary"
 
 
-def _entry_as_item(entry: DiaryEntry) -> MemoryItem:
+def _entry_as_item(entry: DiaryItem) -> RecallItem:
     """View a diary entry as an item, so one pipeline ranks both layers.
 
     Both primitives are the same ``##``-block shape (ADR-0001) — an event's
@@ -50,8 +50,8 @@ def _entry_as_item(entry: DiaryEntry) -> MemoryItem:
     (The rendered name contains ``:``, so a diary entry cannot itself be a
     wiki-link *target* — pointing at diary entries was left open in ADR-0001.)
     """
-    return MemoryItem(
-        category=DIARY_CATEGORY,
+    return RecallItem(
+        file=DIARY_FILE,
         name=f"{entry.date} {entry.time}",
         content=entry.content,
         owner=entry.owner,
@@ -64,7 +64,7 @@ def _entry_as_item(entry: DiaryEntry) -> MemoryItem:
 class RetrievedItem:
     """One entry in an injection sequence."""
 
-    item: MemoryItem
+    item: RecallItem
     source: str  # "hit" (search match) or "link" (one-hop wiki-link expansion)
     score: float | None = None  # ranking score: fused when embedding ran, else BM25
     bm25_score: float | None = None
@@ -124,10 +124,10 @@ class MemoryIndex:
         self._fusion_weight = fusion_weight
         self._binary_threshold = binary_threshold
         self._built_revision: int | None = None
-        self._docs: list[tuple[MemoryItem, Counter[str], int]] = []
+        self._docs: list[tuple[RecallItem, Counter[str], int]] = []
         self._df: Counter[str] = Counter()
         self._avg_len = 0.0
-        self._by_key: dict[tuple[str, str], MemoryItem] = {}
+        self._by_key: dict[tuple[str, str], RecallItem] = {}
         self._vec_index = None  # wikimem.vectors.MemmapVectorIndex, rows == doc order
 
     # ----------------------------------------------------------------- build
@@ -143,7 +143,7 @@ class MemoryIndex:
             counts = Counter(tokens)
             self._docs.append((item, counts, len(tokens)))
             self._df.update(counts.keys())
-            self._by_key[(item.category, item.name)] = item
+            self._by_key[(item.file, item.name)] = item
             total_len += len(tokens)
         self._avg_len = (total_len / len(self._docs)) if self._docs else 0.0
         self._built_revision = self.store.revision
@@ -153,7 +153,7 @@ class MemoryIndex:
 
             cache = VectorCache(self._vectors_dir)
             entries = [
-                ((item.category, item.name), f"{item.name}\n{item.content}")
+                ((item.file, item.name), f"{item.name}\n{item.content}")
                 for item, _, _ in self._docs
             ]
             _, matrix = cache.sync(entries, self._embedder)
@@ -196,14 +196,14 @@ class MemoryIndex:
             score += idf * norm
         return score
 
-    def _diary_docs(self, window: TimeRange) -> list[tuple[MemoryItem, Counter[str], int]]:
+    def _diary_docs(self, window: TimeRange) -> list[tuple[RecallItem, Counter[str], int]]:
         """Windowed diary entries, tokenized like wiki docs.
 
         Built per query rather than cached: the candidate set depends on the
         window, and a window is only a handful of day files (the filename *is*
         the time index), so there is nothing worth persisting.
         """
-        docs: list[tuple[MemoryItem, Counter[str], int]] = []
+        docs: list[tuple[RecallItem, Counter[str], int]] = []
         for entry in self.store.diary.window(*window):
             item = _entry_as_item(entry)
             tokens = tokenize(f"{item.name}\n{item.content}", use_jieba=self._use_jieba)
@@ -281,7 +281,7 @@ class MemoryIndex:
         result = RetrievalResult(items=[], budget_tokens=budget_tokens, budget_used=0)
 
         window, source = self._resolve_window(query, time_range, tz)
-        diary_docs: list[tuple[MemoryItem, Counter[str], int]] = []
+        diary_docs: list[tuple[RecallItem, Counter[str], int]] = []
         if window is not None:
             result.time_range, result.time_range_source = window, source
             diary_docs = self._diary_docs(window)
@@ -390,7 +390,7 @@ class MemoryIndex:
         sequence: list[RetrievedItem] = []
         seen: set[tuple[str, str]] = set()
         for hit in scored:
-            key = (hit.item.category, hit.item.name)
+            key = (hit.item.file, hit.item.name)
             if key in seen:
                 continue
             seen.add(key)
@@ -398,7 +398,7 @@ class MemoryIndex:
             if not expand_links:
                 continue
             for link in hit.item.links:
-                target_key = (link.category, link.name)
+                target_key = (link.file, link.name)
                 if target_key in seen:
                     continue
                 target = self._by_key.get(target_key)

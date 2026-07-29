@@ -1,7 +1,7 @@
 """Zero-dependency CLI (stdlib only): inspect a memory store from the shell.
 
 ``wikimem ls / show / grep / explain / graph`` over a store directory.
-``graph`` parses ``[[category:item]]`` links out of the markdown and exports
+``graph`` parses ``[[file:item]]`` links out of the markdown and exports
 the wiki-link relation graph (mermaid or json) — this takes over the
 semantic-layer visualization duty from the retired Neo4j stack (lab ADR-0001,
 XnneHangLab#481). No docker, no service process, no third-party imports.
@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-from .models import MemoryItem
+from .models import RecallItem
 from .retrieval import MemoryIndex, RetrievedItem
 from .store import MemoryStore
 from .tokenize import tokenize
@@ -26,12 +26,12 @@ from .tokenize import tokenize
 _STORE_ENV = "WIKIMEM_STORE"
 
 
-def _item_id(item: MemoryItem) -> str:
-    return f"{item.category}:{item.name}"
+def _item_id(item: RecallItem) -> str:
+    return f"{item.file}:{item.name}"
 
 
-def _render_item(item: MemoryItem) -> str:
-    """Render one item the way the category file stores it."""
+def _render_item(item: RecallItem) -> str:
+    """Render one item the way its RecallFile stores it."""
     parts = [f"## {item.name}", "", item.content]
     fields: list[str] = []
     if item.owner:
@@ -49,28 +49,28 @@ def _render_item(item: MemoryItem) -> str:
 
 
 def _cmd_ls(store: MemoryStore) -> int:
-    categories = store.categories()
-    if not categories:
+    files = store.files()
+    if not files:
         return 0
-    width = max(len(cat) for cat in categories)
-    for cat in categories:
+    width = max(len(cat) for cat in files)
+    for cat in files:
         print(f"{cat:<{width}}  {len(store.items(cat)):>4}")
     return 0
 
 
-def _cmd_show(store: MemoryStore, category: str, name: str | None) -> int:
+def _cmd_show(store: MemoryStore, file: str, name: str | None) -> int:
     if name is not None:
-        item = store.get(category, name)
+        item = store.get(file, name)
         if item is None:
-            print(f"wikimem: no item {name!r} in category {category!r}", file=sys.stderr)
+            print(f"wikimem: no item {name!r} in file {file!r}", file=sys.stderr)
             return 1
         print(_render_item(item))
         return 0
-    items = store.items(category)
+    items = store.items(file)
     if not items:
-        print(f"wikimem: no such category: {category}", file=sys.stderr)
+        print(f"wikimem: no such file: {file}", file=sys.stderr)
         return 1
-    print(f"# {category}")
+    print(f"# {file}")
     for item in items:
         print()
         print(_render_item(item))
@@ -162,18 +162,16 @@ def _graph_data(store: MemoryStore) -> tuple[list[dict[str, object]], list[dict[
         node_id = _item_id(item)
         if node_id not in seen:
             seen.add(node_id)
-            nodes.append(
-                {"id": node_id, "category": item.category, "name": item.name, "unresolved": False}
-            )
+            nodes.append({"id": node_id, "file": item.file, "name": item.name, "unresolved": False})
     for item in items:
         for link in item.links:
-            target_id = f"{link.category}:{link.name}"
+            target_id = f"{link.file}:{link.name}"
             if target_id not in seen:
                 seen.add(target_id)
                 nodes.append(
                     {
                         "id": target_id,
-                        "category": link.category,
+                        "file": link.file,
                         "name": link.name,
                         "unresolved": True,
                     }
@@ -224,10 +222,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("ls", help="list categories with item counts")
+    sub.add_parser("ls", help="list files with item counts")
 
-    p_show = sub.add_parser("show", help="print a category (or one item) as stored")
-    p_show.add_argument("category")
+    p_show = sub.add_parser("show", help="print a file (or one item) as stored")
+    p_show.add_argument("file")
     p_show.add_argument("name", nargs="?", default=None)
 
     p_grep = sub.add_parser("grep", help="regex search over item names and content")
@@ -271,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "ls":
         return _cmd_ls(store)
     if args.command == "show":
-        return _cmd_show(store, args.category, args.name)
+        return _cmd_show(store, args.file, args.name)
     if args.command == "grep":
         return _cmd_grep(store, args.pattern, args.ignore_case)
     if args.command == "explain":

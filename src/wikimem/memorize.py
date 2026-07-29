@@ -26,7 +26,7 @@ import re
 from typing import Any, Protocol
 
 from .diary import Diary
-from .models import DiaryEntry
+from .models import DiaryItem
 
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
@@ -50,7 +50,7 @@ Rules:
 - Only things that HAPPENED. Timeless facts are state, and state is not diary.
 - One event per entry. Be concrete and specific.
 - If the moment carried an emotion, let it show — that is the point of a diary.
-- You may reference a related memory inline with [[category:item]].
+- You may reference a related memory inline with [[file:item]].
 - Write in the user's language.
 - Nothing worth keeping? Return []. Never invent what the turn does not show.
 
@@ -113,7 +113,7 @@ def memorize(
     owner: str | None = None,
     source_conv: str | None = None,
     **append_kwargs: Any,
-) -> list[DiaryEntry]:
+) -> list[DiaryItem]:
     """Write the turn's memorable moments to the diary. **One** LLM call.
 
     Returns the appended entries — often empty, which is the healthy case: most
