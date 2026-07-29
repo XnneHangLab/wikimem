@@ -61,7 +61,21 @@ budget: used 37 / no limit
 unresolved links: [[missing:gone]]
 ```
 
-参数：`--limit N`（命中上限，默认 10）、`--budget N`（token 预算——被裁掉的条目会列出）、`--no-links`（关闭一跳展开）、`--jieba` / `--no-jieba`（强制 CJK 分词路径，默认自动）。
+参数：`--limit N`（命中上限，默认 10）、`--budget N`（token 预算——被裁掉的条目会列出）、`--no-links`（关闭一跳展开）、`--jieba` / `--no-jieba`（强制 CJK 分词路径，默认自动）、`--time-range START..END`（按日记窗口门控）。
+
+每次都会打印一行 `time gate:`，因此**检索被收窄绝不会是静默的**：
+
+```bash
+wikimem -s memory/ explain "拉面" --time-range 2026-07-22
+#   time gate: 2026-07-22  [explicit]
+wikimem -s memory/ explain "前天吃了什么"
+#   time gate: 2026-07-22  [parsed]          ← 从 query 里自己解析出来的
+wikimem -s memory/ explain "海边"
+#   time gate: none (whole store)
+```
+
+只给一个日期＝当天的单日窗口。窗口内为空时会向两侧各放宽一天，并标注
+`(widened: window was empty)`。语义见[时间门控](/zh/reference/api#时间门控)。
 
 CLI 始终走 BM25 路径——embedding 融合需要配置端点，属于宿主配置，不属于 shell 查看场景。
 

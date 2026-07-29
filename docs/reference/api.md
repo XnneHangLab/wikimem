@@ -234,9 +234,39 @@ in-memory derived state: built on first use, rebuilt automatically when
 - `rebuild()` — rescan the store now. Needed only after out-of-band file
   edits; cheap at personal-memory scale.
 - `retrieve(query, *, limit=10, budget_tokens=None, expand_links=True,
-  explain=False) -> RetrievalResult` — rank, expand one hop, trim to budget.
-  Zero LLM calls, synchronous, never raises for a degraded embedding path.
-  Semantics: [Retrieval](/guide/retrieval).
+  explain=False, time_range=None, tz=None) -> RetrievalResult` — rank, expand
+  one hop, trim to budget. Zero LLM calls, synchronous, never raises for a
+  degraded embedding path. Semantics: [Retrieval](/guide/retrieval).
+
+### The time gate
+
+```python
+index.retrieve("前天晚上吃了什么")                              # window parsed from the query
+index.retrieve("吃了什么", time_range=("2026-07-22", "2026-07-22"))  # or passed explicitly
+```
+
+A window brings the **diary** entries of those days into the same ranking as
+the wiki. Time **filters candidates — it never scores them**, so the fusion
+formula is untouched (ADR-0002).
+
+| param | meaning |
+|---|---|
+| `time_range` | inclusive `("YYYY-MM-DD", "YYYY-MM-DD")`. This is the exit of a host's own intent recognition or tool call |
+| `tz` | the calendar relative words resolve against (default: system local, matching how diary files are named) |
+
+- **Two ways in.** Pass `time_range`, or let the **regex fast path** find one in
+  the query (`昨天` / `前天` / `上周三` / `3天前` / `7月21号` / ISO dates — see
+  [`parse_time_range`](#parse-time-range)). It is deliberately **narrow**:
+  unrecognized means *no time intent*, never a guess.
+- **The wiki is never time-filtered.** The timeline belongs to the diary, so
+  standing facts keep competing — "海边" can return both that day's event and a
+  standing preference.
+- **Empty query + a window** returns that window, newest first — recalling a day
+  without keywords.
+- **An empty window relaxes** by a day either side rather than answering
+  "nothing", and reports it (`time_range_widened`).
+- Without a window, **behaviour is exactly as before** and the diary stays out
+  of retrieval entirely.
 
 ## RetrievalResult
 
@@ -248,6 +278,13 @@ in-memory derived state: built on first use, rebuilt automatically when
 | `embedding_used` | `bool` | `True` only when the cosine path actually ran |
 | `dropped` | `list[RetrievedItem]` | what the budget cut — populated only with `explain=True` |
 | `unresolved_links` | `list[str]` | rendered links whose target is missing, e.g. `"[[a:b]]"` |
+| `time_range` | `tuple[str, str] \| None` | the window actually applied (`None` = no gate) |
+| `time_range_source` | `str \| None` | `"explicit"` (you passed it) or `"parsed"` (regex fast path) |
+| `time_range_widened` | `bool` | the window held nothing, so it was relaxed by a day either side |
+
+A diary entry that surfaces through the gate arrives as a `RecallItem` with
+`file="diary"` and `name="YYYY-MM-DD HH:MM"`, so it ranks, expands links, and
+gets budget-trimmed like any other item.
 
 ## RetrievedItem
 
@@ -277,6 +314,29 @@ Append-only JSONL log, shared by both primitives. `MemoryStore` writes it
 automatically (`add` / `update` / `remove`), and `Diary.append` writes the
 `diary` line — you rarely construct one yourself. Line schema:
 [On-disk Format](/reference/file-format#journal-jsonl).
+
+## parse_time_range
+
+```python
+parse_time_range(text, *, tz=None, today=None) -> tuple[str, str] | None
+```
+
+The regex fast path behind the [time gate](#the-time-gate): turns a time
+expression into an inclusive `("YYYY-MM-DD", "YYYY-MM-DD")` window, or `None`
+when there is none. Pure stdlib — no `dateparser` / `arrow` / `TimeNLP`.
+
+Recognized: `今天` `昨天` `前天` `大前天` `明天` `后天`, `N天前` (incl. `三天前`),
+`N days ago`, `上周三` / `这周五`, `上周` / `这周`, `N周前`, `上个月` / `这个月`,
+`2026-07-21`, `2026/7/1`, `7月21号`. English `today` / `yesterday` / `tomorrow`
+need word boundaries.
+
+**Narrow beats wrong.** Expressions with no defensible boundary — `最近`,
+`前几天`, `以前` — return `None` on purpose. A wrong window *silently hides* the
+right memory, which is worse than no window, because the caller never learns the
+search was filtered. Regex is the framework's floor; a host LLM that understands
+"the day we argued" is the ceiling, and passes `time_range=` directly.
+
+`today=` pins "now" for deterministic tests or a host-supplied clock.
 
 ## Tokenization
 
