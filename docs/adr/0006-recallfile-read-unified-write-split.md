@@ -25,14 +25,23 @@
 术语从 `Category` / `MemoryItem` 迁移到 **`RecallFile` / `RecallItem`**：
 
 - **"memory" 是内容类型，不是角色。** 将来的 skill 同样是"文件 + 可召回块"，但它**不是记忆**；memory 自身也可能再细分。检索层关心的只是"这块能不能被召回"，所以该用 **Recall** 命名 —— 一个能同时容纳 memory / diary / skill / 未定之物的抽象。
-- **用 `RecallItem` 而非 memU 的 `RecallEntry`**：我们已有 `DiaryEntry`，`RecallEntry` 与之并存会分不清；而 `item` 是本项目一以贯之的词（`items()`、`item.name`、"one `##` heading per item"）。同一个概念，取更贴合既有词汇的那个词。
+- **`item` 是最小记忆块的唯一叫法** —— 一个词，贯穿所有层。`RecallItem` 因此优于 memU 的 `RecallEntry`：`item` 本就是本项目一以贯之的词（`items()`、`item.name`、"one `##` heading per item"、L2 = item），换成 `entry` 要连带把这些全改一遍，收益为零。
+  **推论：`DiaryEntry` 一并改为 `DiaryItem`。** 日记文件是 RecallFile，它的 `##` 块因此就是 RecallItem —— 再叫 `Entry` 会让"同一个概念两个名字"活下来。曾考虑过"Entry 表示写侧形状、Item 表示读侧单元"的分工，**放弃**：那条规则要靠人记，而"最小块一律叫 item"看一眼就懂；本项目一贯偏好后者。
 - **`Category` 不是被 `RecallFile` "替换"，而是降级为一种 kind。** 因为按本 ADR，diary 文件也是 RecallFile。准确说法是：**一条 RecallFile 有它的 kind**（状态/wiki，或事件/diary），"category" 作为**通用术语**退休，只在指"状态层那种 RecallFile"时才出现。
+
+命名收敛后的全貌：
+
+| 层 | 名字 | 说明 |
+|---|---|---|
+| L1 文件 | **RecallFile** | `wiki/preferences.md`、`diary/2026-07-21.md` |
+| L1 的 kind | wiki / diary | 决定**写**语义（覆盖 vs 只追加） |
+| L2 块 | **RecallItem** | 最小记忆块；写侧特化型 `DiaryItem` 仍带 `date`/`time` |
 
 ### 1.2 迁移边界（哪些动、哪些不动）
 
 | | 动不动 | 说明 |
 |---|---|---|
-| 类型名 `MemoryItem` → `RecallItem` | ✅ 动 | 纯改名；pre-alpha（`0.1.0.dev0`）正是最便宜的时机 |
+| 类型名 `MemoryItem` → `RecallItem`、`DiaryEntry` → `DiaryItem` | ✅ 动 | 纯改名；pre-alpha（`0.1.0.dev0`）正是最便宜的时机 |
 | 概念/文档词汇 `category` → RecallFile | ✅ 动 | EN + zh 全量 |
 | **磁盘目录 `category/` → `wiki/`** | ✅ **动** | "category" 这个通用术语既然退休，目录就不该继续叫它。两个目录命名的是 **kind**，而我们的 kind 名一直是 **wiki** 与 **diary**（ADR-0001 通篇如此），`wiki/` + `diary/` 对称且与文档一致 |
 | **wiki-link 语法 `[[preferences:likes-the-sea]]`** | ❌ **不动** | 链接里写的是**文件实名**，从来不含 "category" 这个词（文档里的 `[[category:item]]` 只是占位符），因此**链接与既有内容零破坏** |
@@ -111,14 +120,14 @@
 
 **负面 / 代价**
 
-- 一次公开契约改名（`MemoryItem` → `RecallItem`，ADR-0004 意义上的破坏性变更）+ 全量文档词汇迁移。pre-alpha 阶段做最便宜，但**再晚做就会越来越贵**。
+- 一次公开契约改名（`MemoryItem` → `RecallItem`、`DiaryEntry` → `DiaryItem`，ADR-0004 意义上的破坏性变更）+ 全量文档词汇迁移。pre-alpha 阶段做最便宜，但**再晚做就会越来越贵**。
 - 词汇过渡期内，"category" 一词在旧文档/旧 journal 里仍会出现，读者需要知道它现在指"状态层那种 RecallFile"。
 - 向量缓存随日记单调增长（wiki 是有界的，日记不是）；memmap 分层 + 10k 以上二值量化已为此设计，但需在文档里写明增长预期与"删掉即可重建"的兜底。
 - "日记参与无窗口检索"被推迟到衰减项之后，短期内无时间意图的 query 仍召不回日记。
 
 **实施**
 
-1. **改名清扫（独立 PR）**：`MemoryItem` → `RecallItem`；磁盘目录 `category/` → `wiki/`；`journal` 字段与向量缓存键直接改、**不做兼容**；文档词汇全量同步（EN/zh）。wiki-link 语法**不动**。既有 store 的迁移 = 一次 `mv memory/category memory/wiki`，在 CHANGELOG 里写明即可。
+1. **改名清扫（独立 PR）**：`MemoryItem` → `RecallItem`、`DiaryEntry` → `DiaryItem`；磁盘目录 `category/` → `wiki/`；`journal` 字段与向量缓存键直接改、**不做兼容**；文档词汇全量同步（EN/zh）。wiki-link 语法**不动**。既有 store 的迁移 = 一次 `mv memory/category memory/wiki`，在 CHANGELOG 里写明即可。
 2. **形式化 RecallFile**：把 ADR-0002 Phase 2 的适配器提升为一等概念。
    顺带需要定的一件事：Phase 2 目前把日记条目表示为 `category="diary"` + `name="2026-07-21 14:30"`；按 RecallFile 语义，更贴切的是 **RecallFile = `2026-07-21`（那个日文件）、item = `14:30`**。后者概念上更正确，代价是列举 RecallFile 时会看到"一天一个文件"（本来也确实如此）。
 3. `rebuild()` 把日记条目一并喂给 `VectorCache.sync()`；撤掉"日记按 BM25 排"的权宜规则；补增长与成本说明。
