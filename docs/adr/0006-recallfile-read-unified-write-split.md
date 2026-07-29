@@ -18,7 +18,7 @@
 
 ### 1. RecallFile 是**读侧**的统一抽象
 
-**RecallFile = 一个装着 `##` 块的 markdown 文件；每个 `##` 块是一条 RecallItem（L2 可召回单元）。** `category/preferences.md` 与 `diary/2026-07-21.md` 都是 RecallFile。
+**RecallFile = 一个装着 `##` 块的 markdown 文件；每个 `##` 块是一条 RecallItem（L2 可召回单元）。** `wiki/preferences.md` 与 `diary/2026-07-21.md` 都是 RecallFile（目录改名见 §1.2）。
 
 ### 1.1 命名：按**角色**命名，不按**内容类型**
 
@@ -34,9 +34,9 @@
 |---|---|---|
 | 类型名 `MemoryItem` → `RecallItem` | ✅ 动 | 纯改名；pre-alpha（`0.1.0.dev0`）正是最便宜的时机 |
 | 概念/文档词汇 `category` → RecallFile | ✅ 动 | EN + zh 全量 |
-| **磁盘目录 `category/` 与 `diary/`** | ❌ **不动** | 目录名描述的是 **kind**，两者都是 RecallFile。改名对既有 store 是一次无收益的数据迁移 |
-| **wiki-link 语法 `[[preferences:likes-the-sea]]`** | ❌ **不动** | 链接里写的是**文件实名**，从来不含 "category" 这个词，因此**磁盘格式零破坏** |
-| `journal.jsonl` 字段、向量缓存键 | ⚠️ 实现期定 | 都含 `category` 字段；改名会让既有 journal/缓存读不上号，需兼容或显式作废（缓存本就可删可重建） |
+| **磁盘目录 `category/` → `wiki/`** | ✅ **动** | "category" 这个通用术语既然退休，目录就不该继续叫它。两个目录命名的是 **kind**，而我们的 kind 名一直是 **wiki** 与 **diary**（ADR-0001 通篇如此），`wiki/` + `diary/` 对称且与文档一致 |
+| **wiki-link 语法 `[[preferences:likes-the-sea]]`** | ❌ **不动** | 链接里写的是**文件实名**，从来不含 "category" 这个词（文档里的 `[[category:item]]` 只是占位符），因此**链接与既有内容零破坏** |
+| `journal.jsonl` 字段、向量缓存键 | ✅ **直接改，不做兼容** | 尚未正式投产，此刻**命名干净优先于历史兼容**。向量缓存本就可删可重建；旧 journal 记录作废（它是审计历史，不是真相） |
 
 改名是**一次性、机械、有测试护栏**的清扫，应当作为**独立 PR**，不与功能改动混在一起。
 
@@ -65,7 +65,7 @@
 
 - **日记是叙事散文，正是 BM25 的盲区**。"他一句话没说，饭也没怎么吃" ←→ "我那天是不是很沮丧"：零共享词，只有语义匹配能连上。wiki 条目是短事实句、与 query 用词高度重叠，BM25 本来就打得准。**把 embedding 只给 wiki，等于把它花在最不需要的那一半。**
 - **成本被"不可变"钉死**：缓存是 content-hash 键控（未变则复用、零 API 调用），而日记 append-only、条目永不改写 —— **每条日记一辈子只嵌入一次**。反倒是 wiki 条目会被反复覆盖重嵌。日记是该缓存的理想负载。
-- 覆盖后，融合公式对两层**一视同仁**，§2 那条"按覆盖率排"的权宜规则可以撤掉。
+- 覆盖后，融合公式对两层**一视同仁**，时间门控里那条"日记按归一化 BM25 排"的权宜规则可以撤掉。
 
 ### 4. 日记仍**只经窗口**进入候选集 —— 与 recency 衰减项**绑定**放开
 
@@ -73,7 +73,21 @@
 
 因此把这两件事**耦合**起来：**"日记参与无窗口检索"的开关，等 ADR-0002 §6 的 recency 衰减项（`exp(-Δt/τ)`，默认关、待 bench 数据）落地后一起放开。** 需要衰减的场景，正是这个开关想服务的场景。
 
-### 5. 粒度维持**块级**（`##`），不做行级 segment
+### 5. `journal.jsonl` 保持 jsonl，**不迁 sqlite**
+
+[openclaw#113233](https://github.com/openclaw/openclaw/pull/113233) 把 JSONL transcript 全部去掉、改为 SQLite-only（删掉约 9.4k 行）。是否效仿？**不。** 因为它的动机在我们这里不成立：
+
+- **它删的是"双系统"，不是"jsonl"本身。** 该 PR 的理由是 JSONL 与 SQLite **并存**所带来的 repair / rotation / snapshot / successor 一整套机器，让"session 归属"难以推理；PR 里**没有**给出任何性能、并发或损坏方面的实测问题。我们不存在双系统：markdown 是唯一真相，journal 是历史，vectors 是派生缓存。
+- **它存的是运行时状态，我们存的是追加日志。** 它的 JSONL 承载**活跃会话 transcript** —— 可变、热路径、要压缩要轮转要修复。`journal.jsonl` 只被**追加**，从不修复、不轮转、不压缩，也不在检索热路径上被读。文件格式扛不住的正是前者那种用法。
+- **journal 的全部价值就是 `tail -f` 能看。** 迁进 sqlite 会亲手毁掉它唯一的卖点 —— "不需要数据库工具就能回答'我的记忆发生了什么'"。
+
+诚实补两点：`sqlite3` 在 stdlib 里，所以**不算引入依赖**，这不是理由；而且**真正的真相文件（markdown）永远不可能进 sqlite** —— 那是硬约束 3（磁盘上不允许有不可读的真相）的正面违反。
+
+**重新审视的触发条件**：journal 需要被**查询**（"列出条目 X 的全部变更"）、需要**多进程并发写**，或体量大到 `tail` 不再实际。到那时正确的做法多半也是"为 journal 建一个可删除的派生索引"，而不是把 jsonl 换掉。
+
+**openclaw 真正能借鉴的一课**是另一句：**别让同一份数据由两个存储各存一份**。这一课我们本来就在守。
+
+### 6. 粒度维持**块级**（`##`），不做行级 segment
 
 - 条目**本来就小**：memorize 参考提示词明确要求"一条一事件、2–4 句"（ADR-0005）。把一段 3 句话的日记再切碎，切掉的是"一个完整瞬间"这个属性 —— 而那正是日记有灵魂的原因。
 - **`##` 是稳定锚点，行号不是**：真相是**人可手改**的 markdown（硬约束 3）。人手插一行，所有行号偏移；`## 14:30` 纹丝不动。content-hash 缓存也建立在稳定块上，行级会让缓存大面积失效。
@@ -104,7 +118,7 @@
 
 **实施**
 
-1. **改名清扫（独立 PR）**：`MemoryItem` → `RecallItem`，文档词汇 `category` → RecallFile（EN/zh）。目录名与 wiki-link 语法**不动**；`journal` 字段与向量缓存键的兼容策略实现期定。
+1. **改名清扫（独立 PR）**：`MemoryItem` → `RecallItem`；磁盘目录 `category/` → `wiki/`；`journal` 字段与向量缓存键直接改、**不做兼容**；文档词汇全量同步（EN/zh）。wiki-link 语法**不动**。既有 store 的迁移 = 一次 `mv memory/category memory/wiki`，在 CHANGELOG 里写明即可。
 2. **形式化 RecallFile**：把 ADR-0002 Phase 2 的适配器提升为一等概念。
    顺带需要定的一件事：Phase 2 目前把日记条目表示为 `category="diary"` + `name="2026-07-21 14:30"`；按 RecallFile 语义，更贴切的是 **RecallFile = `2026-07-21`（那个日文件）、item = `14:30`**。后者概念上更正确，代价是列举 RecallFile 时会看到"一天一个文件"（本来也确实如此）。
 3. `rebuild()` 把日记条目一并喂给 `VectorCache.sync()`；撤掉"日记按 BM25 排"的权宜规则；补增长与成本说明。
