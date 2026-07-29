@@ -56,7 +56,7 @@ BM25 索引在启动时免费重建，向量不一样 —— 重算要花 embedd
 
 ```
 memory/
-├── category/
+├── wiki/
 │   ├── preferences.md
 │   └── daily_life.md
 ├── journal.jsonl
@@ -67,7 +67,7 @@ memory/
 - **按内容哈希建键。** 每次索引重建只 embed 新增或变化的条目（每批 64 条），
   未变的行直接复用、不发 API 请求。改个条目名，也只重新 embed 那一条。
 - **该可读的地方是可读的。** `vectors.keys.jsonl` 是纯 JSONL —— 头一行指明
-  当前 `.npy`，之后一行一条 `{category, name, hash}`。矩阵本身是数字，
+  当前 `.npy`，之后一行一条 `{file, name, hash}`。矩阵本身是数字，
   但*谁对应谁*永远是文本。
 - **随时可删。** 两个文件删掉，下次 sync 自动重建。它永远不是事实源。
 - **版本化的 `.npy`**（`vectors-000001.npy`、`-000002.npy`、……）：Windows

@@ -37,7 +37,7 @@ Rules:
 - One event per entry. Be concrete and specific.
 - If the moment carried an emotion, let it show — that is the point of a diary.
 - Do not record timeless facts here; those are state, not events.
-- You may link a wiki item the moment touches with [[category:item]].
+- You may link a wiki item the moment touches with [[file:item]].
 - Write in the user's language.
 
 The turn:

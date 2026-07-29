@@ -15,7 +15,7 @@ wiki-link 是写在内容里的引用 —— 就是你在维基和 Obsidian 里�
 计划夏天去海边旅行，看日出。
 ```
 
-`[[daily_life:beach-trip-plan]]` 是一个两段式地址：**category**（哪个文件 ——
+`[[daily_life:beach-trip-plan]]` 是一个两段式地址：**RecallFile**（哪个文件 ——
 `daily_life.md`）+ **条目名**（文件里哪个 `##` 标题）。所以被链接的节点是
 *条目*：一个有名字、自包含、几句话规模的记忆 —— **不是词，也不是整个文件**。
 
@@ -50,7 +50,7 @@ wiki-link 是写在内容里的引用 —— 就是你在维基和 Obsidian 里�
 
 链接解析刻意做得宽松，因为手改过的文件绝不能让读取崩溃：
 
-- 语法是 `[[category:name]]` —— category 取到**第一个**冒号为止；
+- 语法是 `[[file:name]]` —— RecallFile 取到**第一个**冒号为止；
   两侧都不能含 `[`、`]`、换行或另一个冒号。
 - 两侧的空白会被去掉；残缺或空的链接被解析器静默忽略（不是错误）。
 - 条目名**从源头上**保持无冒号：`sanitize_item_name` 在写入时拒绝
@@ -60,7 +60,7 @@ wiki-link 是写在内容里的引用 —— 就是你在维基和 Obsidian 里�
 from wikimem import parse_wiki_links
 
 parse_wiki_links("… [[daily_life:beach-trip-plan]] 和 [[坏掉的链接 …")
-# [WikiLink(category='daily_life', name='beach-trip-plan')]
+# [WikiLink(file='daily_life', name='beach-trip-plan')]
 ```
 
 ## 悬空链接

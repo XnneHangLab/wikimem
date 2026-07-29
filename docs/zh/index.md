@@ -4,7 +4,7 @@ layout: home
 hero:
   name: wikimem
   text: 面向 AI Agent 的文件优先记忆
-  tagline: 纯 markdown 之上的 categories + wiki-links。不需要数据库、不需要 embedding 模型、不需要 docker —— pip install wikimem 即可使用。
+  tagline: 纯 markdown 之上的 RecallFiles + wiki-links。不需要数据库、不需要 embedding 模型、不需要 docker —— pip install wikimem 即可使用。
   image:
     src: /logo.svg
     alt: wikimem
@@ -22,10 +22,10 @@ hero:
 features:
   - icon: 📄
     title: markdown 就是数据库
-    details: 每个分类一个文件，每个 ## 标题一个条目。可以直接阅读、编辑、git diff —— 你的编辑器就是管理界面。
+    details: 每个 RecallFile 一个文件，每个 ## 标题一个条目。可以直接阅读、编辑、git diff —— 你的编辑器就是管理界面。
   - icon: 🔗
     title: 链接召回搜索够不着的记忆
-    details: "记忆写入时留下的 [[category:item]] 链接，把词面毫无重合的相关条目连起来。展开是机械的一跳查找 —— 不调 LLM，没有图数据库。"
+    details: "记忆写入时留下的 [[file:item]] 链接，把词面毫无重合的相关条目连起来。展开是机械的一跳查找 —— 不调 LLM，没有图数据库。"
   - icon: 🔍
     title: 零依赖 BM25
     details: 纯内存索引，启动时免费重建。中文开箱即用（字符 bigram），装 [zh] 获得 jieba 分词。

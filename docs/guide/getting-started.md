@@ -28,7 +28,7 @@ store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日
 update model. Now look at what it wrote:
 
 ```markdown
-<!-- memory/category/preferences.md -->
+<!-- memory/wiki/preferences.md -->
 # preferences
 
 ## likes-the-sea
@@ -38,12 +38,12 @@ update model. Now look at what it wrote:
 <!-- wikimem: owner=user:xnne | source=conv_20260710 | ts=2026-07-10T03:00:00+00:00 -->
 ```
 
-A category is a markdown file; an item is a `##` section; provenance lives in
+A RecallFile is a markdown file; an item is a `##` section; provenance lives in
 an HTML comment; the `[[daily_life:beach-trip-plan]]` wiki-link is plain text
 in the content. Nothing here needs wikimem to be read.
 
 ::: tip Naming rules
-Category names are lowercase ASCII slugs (`daily_life`, `preferences`) — they
+RecallFile names are lowercase ASCII slugs (`daily_life`, `preferences`) — they
 double as filenames and link prefixes. Item names may be any language but must
 avoid `[[ ]] : | #`. See [On-disk Format](/reference/file-format) for the
 exact rules.
@@ -81,15 +81,15 @@ why. Details in [Retrieval](/guide/retrieval).
 
 ```
 memory/
-├── category/             ← wiki (state layer): one file per category
+├── wiki/             ← wiki (state layer): one RecallFile per topic
 │   ├── preferences.md    ← source of truth
 │   └── daily_life.md     ← source of truth
 ├── diary/                ← diary (event layer): one file per day
 └── journal.jsonl         ← append-only audit log (wiki + diary)
 ```
 
-That's everything the base pipeline persists. Wiki categories live under
-`category/`; the diary lives under `diary/`. The BM25 index lives in memory
+That's everything the base pipeline persists. Wiki RecallFiles live under
+`wiki/`; the diary lives under `diary/`. The BM25 index lives in memory
 and is rebuilt from the wiki files at startup — there is nothing to migrate,
 back up, or corrupt. If you enable [embedding fusion](/guide/embedding-fusion),
 a vector cache (`vectors-*.npy` + `vectors.keys.jsonl`) appears next to the
@@ -106,7 +106,7 @@ the pipeline. Two things to know:
   git checkout) are picked up by calling `index.rebuild()` — or just
   restarting, since the index is rebuilt at startup anyway.
 - If you duplicate an item heading by hand, the **last occurrence wins** on
-  read; the duplicate disappears on the next write of that category.
+  read; the duplicate disappears on the next write of that RecallFile.
 
 ## Next steps
 

@@ -4,7 +4,7 @@
 
 <!-- 与 README.md 保持同步：任一文件更新时请同步另一份 -->
 
-面向 AI Agent 的文件优先记忆系统：**纯 markdown 之上的 categories + wiki-links**。
+面向 AI Agent 的文件优先记忆系统：**纯 markdown 之上的 RecallFiles + wiki-links**。
 不需要数据库、不需要 embedding 模型、不需要 docker —— `pip install wikimem` 即可使用。
 
 ## 安装
@@ -26,8 +26,8 @@ pip install "wikimem[all]" # 不想纠结就装这个，可选增强全都带上
 
 ## 设计规则
 
-1. **markdown 文件是唯一事实源。** 每个分类一个文件，位于 `category/`
-   （`memory/category/preferences.md`）；日记事件按天落在 `diary/` 下。
+1. **markdown 文件是唯一事实源。** 每个 RecallFile 一个文件，位于 `wiki/`
+   （`memory/wiki/preferences.md`）；日记事件按天落在 `diary/` 下。
    每个 `##` 标题一个条目。可以直接阅读、编辑、diff —— 你的编辑器就是管理界面。
 2. **磁盘上没有不可读的真相。** 一切派生产物（索引、向量缓存）都可删除、可从文件
    重建。BM25 索引在启动时于内存中构建。
@@ -55,7 +55,7 @@ wiki-link 是写在内容里的引用 —— 就是你在维基和 Obsidian 里�
 计划夏天去海边旅行，看日出。
 ```
 
-`[[daily_life:beach-trip-plan]]` 是一个两段式地址：**category**（哪个文件 ——
+`[[daily_life:beach-trip-plan]]` 是一个两段式地址：**RecallFile**（哪个文件 ——
 `daily_life.md`）+ **条目名**（文件里哪个 `##` 标题）。所以被链接的节点是
 *条目*：一个有名字、自包含、几句话规模的记忆 —— **不是词，也不是整个文件**。
 检索命中 `likes-the-sea` 时，会机械展开它的链接一跳，把整个
@@ -80,7 +80,7 @@ wiki-link 是写在内容里的引用 —— 就是你在维基和 Obsidian 里�
 Pre-alpha，按里程碑逐步构建
 （设计文档：XnneHangLab ADR-0001 —— 记忆管线）：
 
-- M1 ✅ —— 存储层：分类文件、条目模型 + 元数据、
+- M1 ✅ —— 存储层：RecallFile、条目模型 + 元数据、
   wiki-link 解析、`journal.jsonl`、原子写入
 - M2 ✅ —— 检索：内存 BM25（字符 bigram 兜底，`[zh]` extra 提供
   jieba 分词）、一跳 wiki-link 展开、token 预算、explain
@@ -132,8 +132,8 @@ print(result.embedding_used)          # False = 端点不可用，BM25 照常工
 同一个 store，在 shell 里直接查——纯 stdlib，随包安装：
 
 ```bash
-wikimem -s memory/ ls                      # categories + 条目数
-wikimem -s memory/ show preferences        # 按存储原样打印一个 category
+wikimem -s memory/ ls                      # RecallFiles + 条目数
+wikimem -s memory/ show preferences        # 按存储原样打印一个 RecallFile
 wikimem -s memory/ grep 海边                # 正则搜索，grep 风格输出
 wikimem -s memory/ explain "想去海边玩"      # 检索打分明细
 wikimem -s memory/ graph --format mermaid  # wiki-link 关系图（mermaid / json）

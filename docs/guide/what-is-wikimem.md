@@ -1,9 +1,9 @@
 # What is wikimem?
 
 wikimem is a **file-first memory pipeline** for AI agents: long-term memory
-stored as **plain markdown files** (one file per category, one `##` heading per
+stored as **plain markdown files** (one RecallFile per topic, one `##` heading per
 item), searched by an **in-memory BM25 index**, and connected by
-**wiki-links** — `[[category:item]]` references that recall meaning-related
+**wiki-links** — `[[file:item]]` references that recall meaning-related
 items keyword search cannot reach.
 
 It is a Python library with **zero mandatory dependencies**. `pip install
@@ -30,8 +30,8 @@ wiki-links deliver with a mechanical one-hop expansion.
 
 Everything in the library follows from these (fixed in XnneHangLab ADR-0001):
 
-1. **Markdown files are the only source of truth.** One file per category
-   under `category/` (`memory/category/preferences.md`), one `##` heading per
+1. **Markdown files are the only source of truth.** One RecallFile per topic
+   under `wiki/` (`memory/wiki/preferences.md`), one `##` heading per
    item; diary events live as per-day files under `diary/`. Read them, edit
    them, diff them — your editor is the admin UI.
 2. **No unreadable truth on disk.** Every derived artifact (indexes, vector
@@ -78,7 +78,7 @@ when you construct `MemoryIndex` with an `embedder`.
 Pre-alpha (`0.1.0.dev0`), built milestone by milestone against
 XnneHangLab ADR-0001:
 
-- **M1 ✅ — storage**: category files, item model + provenance metadata,
+- **M1 ✅ — storage**: RecallFiles, item model + provenance metadata,
   wiki-link parsing, `journal.jsonl`, atomic writes
 - **M2 ✅ — retrieval**: in-memory BM25 (char-bigram fallback, `[zh]` extra for
   jieba), one-hop wiki-link expansion, token budget, explain

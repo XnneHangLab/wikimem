@@ -5,7 +5,7 @@ humans. A complete memory directory:
 
 ```
 memory/
-├── category/             ← wiki (state layer): one file per category
+├── wiki/             ← wiki (state layer): one RecallFile per topic
 │   ├── preferences.md    ← source of truth
 │   └── daily_life.md     ← source of truth
 ├── diary/                ← diary (event layer): one file per day
@@ -15,19 +15,19 @@ memory/
 └── vectors.keys.jsonl    ← derived: cache key map ([embed] only)
 ```
 
-The two content primitives each get their own subdirectory — `category/` (state:
+The two content primitives each get their own subdirectory — `wiki/` (state:
 "what is true now") and `diary/` (events: "what happened, and when") — so an
 unbounded, growing set of either never clutters the store root. Both hold plain
 `.md` files in the same serialization format.
 
-**Deletability rule of thumb:** the `.md` files (under `category/` and `diary/`)
+**Deletability rule of thumb:** the `.md` files (under `wiki/` and `diary/`)
 are the memory; everything else can be deleted at any time and rebuilds
 automatically (the journal is history — deleting it loses the audit trail but no
 memories; the BM25 index never even touches disk).
 
-## Category files (`category/`)
+## RecallFiles (`wiki/`)
 
-One markdown file per category under `category/`, one `##` section per item:
+One markdown RecallFile per topic under `wiki/`, one `##` section per item:
 
 ```markdown
 # preferences
@@ -49,7 +49,7 @@ is set — the metadata comment.
 
 ### Naming
 
-- **Category** = filename stem = link prefix. Must match
+- **RecallFile name** = filename stem = link prefix. Must match
   `[a-z0-9_][a-z0-9_-]*` (lowercase ASCII slug). Enforced on write.
 - **Item name** = heading text = link target. Any language; whitespace runs
   collapse to one space; must not contain `[[`, `]]`, `:`, `|`, `#`.
@@ -62,7 +62,7 @@ is set — the metadata comment.
 ```
 
 - Fields are `key=value` pairs separated by `|`; recognized keys: `owner`,
-  `source` (surfaced as `MemoryItem.source_conv`), `ts` (ISO-8601 UTC).
+  `source` (surfaced as `RecallItem.source_conv`), `ts` (ISO-8601 UTC).
 - All fields are optional; the whole comment is omitted when empty.
 - Because `|` is the separator, a literal `|` inside an owner/source value is
   replaced with `/` at write time.
@@ -80,8 +80,8 @@ Reading is deliberately liberal — these are guarantees, not accidents:
 | renamed/deleted a link target | link dangles: skipped at expansion, reported in `unresolved_links` |
 
 Writing is the strict side: every mutation validates names, rewrites the
-whole category file via temp file + atomic `os.replace`, and appends a
-journal line. Removing a category's last item deletes the file.
+whole RecallFile via temp file + atomic `os.replace`, and appends a
+journal line. Removing a RecallFile's last item deletes the file.
 
 ::: warning Out-of-band edits
 Hand edits don't bump the store's revision counter — a running
@@ -92,7 +92,7 @@ process; the index is in-memory and rebuilt at startup anyway).
 ## Diary files (`diary/`)
 
 One markdown file per **day** under `diary/`, one `## HH:MM` section per event —
-the same block shape as a category file, but the heading is a *time* and the file
+the same block shape as a RecallFile, but the heading is a *time* and the file
 groups by *date* instead of topic:
 
 ```markdown
@@ -113,26 +113,26 @@ groups by *date* instead of topic:
   index: a date range maps to a set of files in O(days), no index structure.
 - **Heading** = `HH:MM`, 24-hour local wall clock (validated). The `ts` in the
   metadata comment is the precise UTC instant behind it.
-- Content, the metadata comment, and wiki-links work exactly as in a category
+- Content, the metadata comment, and wiki-links work exactly as in a RecallFile
   file — the serialization is shared.
 
 ### Append-only, and a minute is not a key
 
 Diary is the **event** layer, so two rules differ from the wiki's:
 
-| | category (state) | diary (event) |
+| | wiki (state) | diary (event) |
 |---|---|---|
 | write model | same-name `##` **replaces** (last-wins) | **append-only** — only ever adds; no edit/delete API |
 | duplicate `## heading` | collapsed, last wins | **both kept** — two events can share a minute |
 | ordering | file order | sorted by `HH:MM` on write (stable; same minute keeps insert order) |
 
 A human can still edit a day file directly (it is the truth); the API just never
-rewrites an existing entry. Reading is tolerant exactly as for category files (a
+rewrites an existing entry. Reading is tolerant exactly as for RecallFiles (a
 hand-written entry with no metadata comment → `owner`/`ts` are `None`).
 
 ## Wiki-link syntax
 
-`[[category:name]]` inside item content. Category is everything up to the
+`[[file:name]]` inside item content. The file part is everything up to the
 **first** colon; neither side may contain `[`, `]`, `:` or a newline;
 surrounding whitespace is trimmed; malformed links are ignored by the parser.
 Rationale and behavior: [Wiki-links](/guide/wiki-links).
@@ -143,10 +143,10 @@ One JSON object per line, appended on every mutation —
 `tail -f journal.jsonl` is the live answer to "what happened to my memory":
 
 ```json
-{"ts": "2026-07-10T03:00:00+00:00", "action": "add", "category": "preferences", "item": "likes-the-sea", "owner": "user:xnne", "source_conv": "conv_20260710"}
-{"ts": "2026-07-10T03:05:12+00:00", "action": "update", "category": "preferences", "item": "likes-the-sea", "owner": "user:xnne"}
+{"ts": "2026-07-10T03:00:00+00:00", "action": "add", "file": "preferences", "item": "likes-the-sea", "owner": "user:xnne", "source_conv": "conv_20260710"}
+{"ts": "2026-07-10T03:05:12+00:00", "action": "update", "file": "preferences", "item": "likes-the-sea", "owner": "user:xnne"}
 {"ts": "2026-07-21T06:30:05+00:00", "action": "diary", "date": "2026-07-21", "time": "14:30", "owner": "user:xnne", "source_conv": "conv_20260721"}
-{"ts": "2026-07-10T04:11:40+00:00", "action": "remove", "category": "daily_life", "item": "beach-trip-plan"}
+{"ts": "2026-07-10T04:11:40+00:00", "action": "remove", "file": "daily_life", "item": "beach-trip-plan"}
 ```
 
 The wiki and the diary share one log; `action` tells them apart, and the target
@@ -156,7 +156,7 @@ fields differ accordingly:
 |---|---|---|
 | `ts` | always | ISO-8601 UTC, second precision |
 | `action` | always | wiki: `add` \| `update` (same-name replace) \| `remove`; diary: `diary` (append) |
-| `category`, `item` | wiki actions | which category + item was touched |
+| `file`, `item` | wiki actions | which RecallFile + item was touched |
 | `date`, `time` | `diary` action | which day file + `HH:MM` heading was appended |
 | `owner`, `source_conv`, `detail` | when provided | provenance / free-form note |
 
@@ -175,8 +175,8 @@ Plain text, so *what maps to what* stays readable:
 
 ```json
 {"vectors_file": "vectors-000003.npy"}
-{"category": "preferences", "name": "likes-the-sea", "hash": "9f8a…"}
-{"category": "daily_life", "name": "beach-trip-plan", "hash": "b774…"}
+{"file": "preferences", "name": "likes-the-sea", "hash": "9f8a…"}
+{"file": "daily_life", "name": "beach-trip-plan", "hash": "b774…"}
 ```
 
 Header line names the current matrix file; then one line per row, in matrix

@@ -41,7 +41,7 @@ BM25 本身从不关闭。
 
 ## 3. 一跳链接展开
 
-`expand_links=True`（默认）时，每个命中的 wiki-links 按 `(category, name)`
+`expand_links=True`（默认）时，每个命中的 wiki-links 按 `(file, name)`
 精确查找解析，目标条目**紧跟在所属命中之后**注入，标记 `source="link"`：
 
 ```text

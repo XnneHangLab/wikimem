@@ -15,7 +15,7 @@ export default defineConfig({
       label: "English",
       lang: "en-US",
       description:
-        "File-first memory for AI agents: categories + wiki-links over plain markdown.",
+        "File-first memory for AI agents: RecallFiles + wiki-links over plain markdown.",
       themeConfig: {
         nav: [
           { text: "Guide", link: "/guide/what-is-wikimem" },
@@ -72,7 +72,7 @@ export default defineConfig({
     zh: {
       label: "简体中文",
       lang: "zh-CN",
-      description: "面向 AI Agent 的文件优先记忆系统：纯 markdown 之上的 categories + wiki-links。",
+      description: "面向 AI Agent 的文件优先记忆系统：纯 markdown 之上的 RecallFiles + wiki-links。",
       themeConfig: {
         nav: [
           { text: "指南", link: "/zh/guide/what-is-wikimem" },

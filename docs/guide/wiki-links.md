@@ -15,7 +15,7 @@ from wikis and Obsidian — and in wikimem it always points at **one item**:
 计划夏天去海边旅行，看日出。
 ```
 
-`[[daily_life:beach-trip-plan]]` is an address with two parts: **category**
+`[[daily_life:beach-trip-plan]]` is an address with two parts: **RecallFile**
 (which file — `daily_life.md`) and **item name** (which `##` heading inside
 it). So the linked node is an *item*: a named, self-contained entry of a few
 sentences — **not a word, and not a whole file**.
@@ -57,7 +57,7 @@ Anyone who can type two brackets:
 Link parsing is deliberately liberal, because hand-edited files must never
 crash a read:
 
-- The pattern is `[[category:name]]` — category is everything up to the
+- The pattern is `[[file:name]]` — RecallFile is everything up to the
   **first** colon; neither part may contain `[`, `]`, a newline, or another
   colon.
 - Whitespace around either part is trimmed; malformed or empty links are
@@ -70,7 +70,7 @@ crash a read:
 from wikimem import parse_wiki_links
 
 parse_wiki_links("… [[daily_life:beach-trip-plan]] and [[broken link …")
-# [WikiLink(category='daily_life', name='beach-trip-plan')]
+# [WikiLink(file='daily_life', name='beach-trip-plan')]
 ```
 
 ## Dangling links

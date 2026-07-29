@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md) | [Docs](https://wikimem.xnnehang.top/
 
 <!-- Keep in sync with README.zh-CN.md: update both when either changes -->
 
-File-first memory for AI agents: **categories + wiki-links over plain markdown**.
+File-first memory for AI agents: **RecallFiles + wiki-links over plain markdown**.
 No database, no embedding model, no docker — `pip install wikimem` and it works.
 
 ## Install
@@ -27,8 +27,8 @@ other — installing all of them changes nothing until you actually use them.
 
 ## Design rules
 
-1. **Markdown files are the only source of truth.** One file per category under
-   `category/` (`memory/category/preferences.md`), one `##` heading per item;
+1. **Markdown files are the only source of truth.** One RecallFile per topic under
+   `wiki/` (`memory/wiki/preferences.md`), one `##` heading per item;
    diary events live as per-day files under `diary/`. Read them, edit them,
    diff them — your editor is the admin UI.
 2. **No unreadable truth on disk.** Every derived artifact (indexes, vector
@@ -59,7 +59,7 @@ from wikis and Obsidian — and in wikimem it always points at **one item**:
 ```
 
 `[[daily_life:beach-trip-plan]]` is an address with two parts:
-**category** (which file — `daily_life.md`) and **item name** (which `##`
+**RecallFile** (which file — `daily_life.md`) and **item name** (which `##`
 heading inside it). So the linked node is an *item*: a named, self-contained
 entry of a few sentences — **not a word, and not a whole file**. When
 retrieval hits `likes-the-sea`, it mechanically expands its links one hop and
@@ -88,7 +88,7 @@ Why links, when there's already search?
 Pre-alpha, built milestone by milestone
 (design: XnneHangLab ADR-0001 — memory pipeline):
 
-- M1 ✅ — storage layer: category files, item model + metadata,
+- M1 ✅ — storage layer: RecallFiles, item model + metadata,
   wiki-link parsing, `journal.jsonl`, atomic writes
 - M2 ✅ — retrieval: in-memory BM25 (char-bigram fallback, `[zh]` extra
   for jieba), one-hop wiki-link expansion, token budget, explain
@@ -144,8 +144,8 @@ endpoint silently degrades retrieval to BM25-only; it never raises.
 The same store, from the shell — stdlib only, ships with the package:
 
 ```bash
-wikimem -s memory/ ls                      # categories + item counts
-wikimem -s memory/ show preferences        # print a category as stored
+wikimem -s memory/ ls                      # RecallFiles + item counts
+wikimem -s memory/ show preferences        # print a RecallFile as stored
 wikimem -s memory/ grep 海边                # regex search, grep-style output
 wikimem -s memory/ explain "想去海边玩"      # retrieval scoring breakdown
 wikimem -s memory/ graph --format mermaid  # wiki-link graph (mermaid / json)

@@ -6,9 +6,9 @@ zero-dependency install:
 ```python
 from wikimem import (
     MemoryStore, MemoryIndex, Journal, Diary,
-    MemoryItem, DiaryEntry, WikiLink, RetrievalResult, RetrievedItem,
+    RecallItem, DiaryItem, WikiLink, RetrievalResult, RetrievedItem,
     tokenize, est_tokens, parse_wiki_links,
-    validate_category, sanitize_item_name,
+    validate_file, sanitize_item_name,
 )
 ```
 
@@ -22,8 +22,8 @@ here, so importing `wikimem` never touches numpy.
 MemoryStore(root: Path | str)
 ```
 
-Read/write access to a store's wiki categories, which live as markdown files
-under `root / "category/"`. Creating the store does not touch the filesystem;
+Read/write access to a store's wiki RecallFiles, which live as markdown files
+under `root / "wiki/"`. Creating the store does not touch the filesystem;
 directories appear on first write. The store owns a [`Journal`](#journal) at
 `root / "journal.jsonl"`, and exposes the event-stream primitive at
 [`store.diary`](#diary) (which shares that journal).
@@ -35,32 +35,32 @@ Reads are **tolerant by design** — hand-edited files must never crash a read
 
 | method | returns |
 |---|---|
-| `categories()` | sorted category names — one per `*.md` file in `root / "category/"` |
-| `items(category=None)` | all items, or one category's |
-| `get(category, name)` | the item, or `None` (name is whitespace-normalized before comparing) |
+| `files()` | sorted RecallFile names — one per `*.md` file in `root / "wiki/"` |
+| `items(file=None)` | all items, or one RecallFile's |
+| `get(file, name)` | the item, or `None` (name is whitespace-normalized before comparing) |
 
 ### Writes
 
 Writes are **strict** (validated names) and **atomic** (temp file +
-`os.replace` per category file), and each appends one journal line.
+`os.replace` per RecallFile), and each appends one journal line.
 
 ```python
 store.add(
-    "preferences",            # category: lowercase slug (validated)
+    "preferences",            # file: lowercase slug (validated)
     "likes-the-sea",          # item name (sanitized)
     "喜欢海边。[[daily_life:beach-trip-plan]]",
     owner="user:xnne",        # optional provenance
     source_conv="conv_001",   # optional provenance
     ts=None,                  # optional ISO-8601; defaults to now (UTC)
-) -> MemoryItem
+) -> RecallItem
 ```
 
 - `add` **inserts or replaces**: an existing item with the same name is
   overwritten, and the journal records `update` instead of `add`. This is the
   update model — there is no separate `update()`.
-- `remove(category, name, *, owner=None) -> bool` — `False` if the name
-  wasn't present. Removing a category's last item deletes its file.
-- Raises `ValueError` for an invalid category slug or reserved characters in
+- `remove(file, name, *, owner=None) -> bool` — `False` if the name
+  wasn't present. Removing a RecallFile's last item deletes its file.
+- Raises `ValueError` for an invalid RecallFileslug or reserved characters in
   the item name (see below). Content is stored `strip()`ed.
 
 ### `revision`
@@ -94,7 +94,7 @@ store.diary.append(
     owner=None,       # optional provenance
     source_conv=None, # optional provenance
     tz=None,          # zone for the default date/time (default: system local)
-) -> DiaryEntry
+) -> DiaryItem
 ```
 
 **Append-only** — this is the only write. There is deliberately no edit or
@@ -127,7 +127,7 @@ memorize(
     prompt=None,                  # replaces DIARY_PROMPT wholesale
     owner=None, source_conv=None, # provenance, passed to append
     **append_kwargs,              # e.g. date= / time= / ts=
-) -> list[DiaryEntry]
+) -> list[DiaryItem]
 ```
 
 Turns a conversation turn into diary entries with **one** LLM call: run the
@@ -162,22 +162,22 @@ matrix.
 ## Naming helpers
 
 ```python
-validate_category(category: str) -> str    # raises ValueError if invalid
+validate_file(file: str) -> str    # raises ValueError if invalid
 sanitize_item_name(name: str) -> str       # raises ValueError if invalid
 ```
 
-- **Categories** must match `[a-z0-9_][a-z0-9_-]*` — lowercase ASCII slugs,
+- **RecallFile names** must match `[a-z0-9_][a-z0-9_-]*` — lowercase ASCII slugs,
   because they double as filenames and link prefixes.
 - **Item names** may be any language; whitespace runs collapse to single
   spaces; the characters `[[`, `]]`, `:`, `|`, `#` are rejected (they would
   break headings, links, or metadata).
 
-## MemoryItem / DiaryEntry / WikiLink
+## RecallItem / DiaryItem / WikiLink
 
 ```python
 @dataclass
-class MemoryItem:                   # wiki: the retrieval unit (state)
-    category: str
+class RecallItem:                   # wiki: the retrieval unit (state)
+    file: str
     name: str
     content: str
     owner: str | None = None        # None for hand-written items — tolerated
@@ -190,7 +190,7 @@ class MemoryItem:                   # wiki: the retrieval unit (state)
 
 ```python
 @dataclass
-class DiaryEntry:                   # diary: one event (parallel to MemoryItem)
+class DiaryItem:                   # diary: one event (parallel to RecallItem)
     date: str                       # YYYY-MM-DD — the day file
     time: str                       # HH:MM — the heading (human-local wall clock)
     content: str
@@ -199,15 +199,15 @@ class DiaryEntry:                   # diary: one event (parallel to MemoryItem)
     ts: str | None = None           # ISO-8601 UTC instant
 
     @property
-    def links(self) -> list[WikiLink]   # same wiki-link parsing as MemoryItem
+    def links(self) -> list[WikiLink]   # same wiki-link parsing as RecallItem
 ```
 
 ```python
 @dataclass(frozen=True)
 class WikiLink:
-    category: str
+    file: str
     name: str
-    def render(self) -> str    # "[[category:name]]"
+    def render(self) -> str    # "[[file:name]]"
 ```
 
 `parse_wiki_links(text: str) -> list[WikiLink]` extracts links in order of
@@ -253,7 +253,7 @@ in-memory derived state: built on first use, rebuilt automatically when
 
 | field | type | meaning |
 |---|---|---|
-| `item` | `MemoryItem` | the memory itself |
+| `item` | `RecallItem` | the memory itself |
 | `source` | `str` | `"hit"` (search match) or `"link"` (one-hop expansion) |
 | `score` | `float \| None` | ranking score: fused when embedding ran, else BM25; `None` for links |
 | `bm25_score` | `float \| None` | raw BM25 component (hits only) |
@@ -267,7 +267,7 @@ in-memory derived state: built on first use, rebuilt automatically when
 ```python
 Journal(path: Path | str)
 
-journal.append(action, *, category, name,
+journal.append(action, *, file, name,
                owner=None, source_conv=None, detail=None)   # wiki mutations
 journal.append_diary(*, date, time, owner=None, source_conv=None)  # diary appends
 journal.entries() -> list[dict]

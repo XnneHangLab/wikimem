@@ -22,11 +22,11 @@ async def on_before_turn(self, user_text: str) -> str | None:
             user_text, limit=10, budget_tokens=800,
         )
         # remember what surfaced — these become link targets at memorize time
-        self.related_names = [f"{r.item.category}:{r.item.name}" for r in result.items]
+        self.related_names = [f"{r.item.file}:{r.item.name}" for r in result.items]
         if not result.items:
             return None
         return "\n".join(
-            f"- [{r.item.category}:{r.item.name}] {r.item.content}"
+            f"- [{r.item.file}:{r.item.name}] {r.item.content}"
             for r in result.items
         )
     except Exception:
@@ -35,9 +35,9 @@ async def on_before_turn(self, user_text: str) -> str | None:
 
 Choices worth copying:
 
-- **Label each injected item with its `category:name` address.** The model
+- **Label each injected item with its `file:name` address.** The model
   sees stable addresses it can refer to, and the extraction step can link to
-  them (`[[category:name]]`) without guessing.
+  them (`[[file:name]]`) without guessing.
 - **Keep the budget in host hands.** `budget_tokens` is the knob that decides
   how much of the prompt memory may occupy; retrieval guarantees it is
   respected and tells you (`budget_used`) what it spent.
@@ -67,7 +67,7 @@ then plain `store.add` calls. No LLM output is trusted:
 - **Parse tolerantly.** Find the outermost `[...]` in the response and
   `json.loads` it; anything malformed → memorize nothing this turn.
 - **Validate per item, not per batch.** `store.add` raises `ValueError` for
-  an invalid category slug or reserved characters in a name — skip that item
+  an invalid RecallFileslug or reserved characters in a name — skip that item
   and keep the rest.
 - **Cap items per turn** (the reference plugin uses 8) so one chatty
   extraction can't flood the store.
@@ -83,15 +83,15 @@ borrowed from memU per lab ADR-0002):
 - **Exclude the ephemeral** — weather, greetings, in-progress task state.
 - **Attribute correctly** — the user's facts are the user's; only the
   assistant's own commitments are the assistant's.
-- **`category` is a lowercase slug** (suggest a base set: `preferences`,
+- **`RecallFile` is a lowercase slug** (suggest a base set: `preferences`,
   `daily_life`, `profile`, `event`, `knowledge`, …; new ones allowed) —
-  matching wikimem's category validation.
+  matching wikimem's RecallFile validation.
 - **`name` short and stable**, without `: | # [[ ]]` — matching
   `sanitize_item_name`.
-- **Link, don't repeat**: pass the categories that exist
-  (`store.categories()`) and the items retrieval surfaced this turn
+- **Link, don't repeat**: pass the RecallFiles that exist
+  (`store.files()`) and the items retrieval surfaced this turn
   (`related_names` from above) as candidate link targets, and have the model
-  write `[[category:name]]` inline when a new fact relates to one. This is
+  write `[[file:name]]` inline when a new fact relates to one. This is
   the moment the wiki-link graph gets built.
 - **Empty is a valid answer**: no memorable facts → `[]`.
 
@@ -105,7 +105,7 @@ names would turn every update into a duplicate.
 
 ## Deployment notes
 
-- **One process, one store.** Writes are atomic per category file, but the
+- **One process, one store.** Writes are atomic per RecallFile, but the
   revision counter that keeps the index fresh is in-process state. Multiple
   writer processes on one directory is not a supported topology.
 - **Restart is free.** The BM25 index rebuilds at startup from the files; the

@@ -5,9 +5,9 @@
 ```python
 from wikimem import (
     MemoryStore, MemoryIndex, Journal, Diary,
-    MemoryItem, DiaryEntry, WikiLink, RetrievalResult, RetrievedItem,
+    RecallItem, DiaryItem, WikiLink, RetrievalResult, RetrievedItem,
     tokenize, est_tokens, parse_wiki_links,
-    validate_category, sanitize_item_name,
+    validate_file, sanitize_item_name,
 )
 ```
 
@@ -20,7 +20,7 @@ from wikimem import (
 MemoryStore(root: Path | str)
 ```
 
-对 store 里 wiki 分类的读写入口，分类文件落在 `root / "category/"`。
+对 store 里 wiki RecallFile 的读写入口，RecallFile 落在 `root / "wiki/"`。
 构造 store 不触碰文件系统；目录在首次写入时出现。store 自带一个位于
 `root / "journal.jsonl"` 的 [`Journal`](#journal)，并通过
 [`store.diary`](#diary) 暴露事件流原语（与该 journal 共用）。
@@ -32,31 +32,31 @@ MemoryStore(root: Path | str)
 
 | 方法 | 返回 |
 |---|---|
-| `categories()` | 排序后的分类名 —— `root / "category/"` 下每个 `*.md` 一个 |
-| `items(category=None)` | 全部条目，或某一分类的 |
-| `get(category, name)` | 条目或 `None`（比较前先做空白归一） |
+| `files()` | 排序后的 RecallFile 名 —— `root / "wiki/"` 下每个 `*.md` 一个 |
+| `items(file=None)` | 全部条目，或某一 RecallFile 的 |
+| `get(file, name)` | 条目或 `None`（比较前先做空白归一） |
 
 ### 写
 
-写入**严格**（名字校验）且**原子**（每个分类文件走临时文件 + `os.replace`），
+写入**严格**（名字校验）且**原子**（每个 RecallFile 走临时文件 + `os.replace`），
 每次变更追加一行 journal。
 
 ```python
 store.add(
-    "preferences",            # 分类：小写 slug（会校验）
+    "preferences",            # RecallFile：小写 slug（会校验）
     "likes-the-sea",          # 条目名（会清洗）
     "喜欢海边。[[daily_life:beach-trip-plan]]",
     owner="user:xnne",        # 可选溯源
     source_conv="conv_001",   # 可选溯源
     ts=None,                  # 可选 ISO-8601；默认当前 UTC 时间
-) -> MemoryItem
+) -> RecallItem
 ```
 
 - `add` **插入或替换**：同名条目会被覆盖，journal 记 `update` 而非 `add`。
   更新模型就这一条 —— 没有单独的 `update()`。
-- `remove(category, name, *, owner=None) -> bool` —— 名字不存在返回 `False`。
-  删掉分类的最后一条时，文件一并删除。
-- 分类 slug 非法或条目名含保留字符时抛 `ValueError`。内容存储时 `strip()`。
+- `remove(file, name, *, owner=None) -> bool` —— 名字不存在返回 `False`。
+  删掉 RecallFile 的最后一条时，文件一并删除。
+- RecallFileslug 非法或条目名含保留字符时抛 `ValueError`。内容存储时 `strip()`。
 
 ### `revision`
 
@@ -87,7 +87,7 @@ store.diary.append(
     owner=None,       # 可选溯源
     source_conv=None, # 可选溯源
     tz=None,          # 默认 date/time 所用时区（默认系统本地）
-) -> DiaryEntry
+) -> DiaryItem
 ```
 
 **Append-only** —— 这是唯一写接口。刻意不提供改写/删除：条目只追加，
@@ -118,7 +118,7 @@ memorize(
     prompt=None,                  # 整份替换 DIARY_PROMPT
     owner=None, source_conv=None, # 溯源信息，透传给 append
     **append_kwargs,              # 如 date= / time= / ts=
-) -> list[DiaryEntry]
+) -> list[DiaryItem]
 ```
 
 用**一次** LLM 调用把一轮对话变成日记条目：跑提示词 → 解析 → 落盘。提示词、解析、
@@ -147,21 +147,21 @@ class LLM(Protocol):
 ## 命名助手
 
 ```python
-validate_category(category: str) -> str    # 非法时抛 ValueError
+validate_file(file: str) -> str    # 非法时抛 ValueError
 sanitize_item_name(name: str) -> str       # 非法时抛 ValueError
 ```
 
-- **分类**必须匹配 `[a-z0-9_][a-z0-9_-]*` —— 小写 ASCII slug，
+- **RecallFile**必须匹配 `[a-z0-9_][a-z0-9_-]*` —— 小写 ASCII slug，
   因为它同时充当文件名和链接前缀。
 - **条目名**可为任何语言；连续空白折叠成单个空格；拒绝
   `[[`、`]]`、`:`、`|`、`#`（它们会破坏标题、链接或元数据）。
 
-## MemoryItem / DiaryEntry / WikiLink
+## RecallItem / DiaryItem / WikiLink
 
 ```python
 @dataclass
-class MemoryItem:                   # wiki：检索单元（状态）
-    category: str
+class RecallItem:                   # wiki：检索单元（状态）
+    file: str
     name: str
     content: str
     owner: str | None = None        # 手写条目为 None —— 容忍
@@ -174,7 +174,7 @@ class MemoryItem:                   # wiki：检索单元（状态）
 
 ```python
 @dataclass
-class DiaryEntry:                   # diary：一条事件（与 MemoryItem 并列）
+class DiaryItem:                   # diary：一条事件（与 RecallItem 并列）
     date: str                       # YYYY-MM-DD —— 天文件
     time: str                       # HH:MM —— 标题（人本地墙钟）
     content: str
@@ -183,15 +183,15 @@ class DiaryEntry:                   # diary：一条事件（与 MemoryItem 并�
     ts: str | None = None           # ISO-8601 UTC 时刻
 
     @property
-    def links(self) -> list[WikiLink]   # 与 MemoryItem 同一套 wiki-link 解析
+    def links(self) -> list[WikiLink]   # 与 RecallItem 同一套 wiki-link 解析
 ```
 
 ```python
 @dataclass(frozen=True)
 class WikiLink:
-    category: str
+    file: str
     name: str
-    def render(self) -> str    # "[[category:name]]"
+    def render(self) -> str    # "[[file:name]]"
 ```
 
 `parse_wiki_links(text: str) -> list[WikiLink]` 按出现顺序抽取链接；
@@ -236,7 +236,7 @@ MemoryIndex(
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
-| `item` | `MemoryItem` | 记忆本体 |
+| `item` | `RecallItem` | 记忆本体 |
 | `source` | `str` | `"hit"`（搜索命中）或 `"link"`（一跳展开） |
 | `score` | `float \| None` | 排序分：跑了 embedding 是融合分，否则 BM25；链接条目为 `None` |
 | `bm25_score` | `float \| None` | 原始 BM25 分量（仅命中） |
@@ -250,7 +250,7 @@ MemoryIndex(
 ```python
 Journal(path: Path | str)
 
-journal.append(action, *, category, name,
+journal.append(action, *, file, name,
                owner=None, source_conv=None, detail=None)   # wiki 变更
 journal.append_diary(*, date, time, owner=None, source_conv=None)  # diary 追加
 journal.entries() -> list[dict]

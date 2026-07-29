@@ -1,8 +1,8 @@
 # 什么是 wikimem？
 
 wikimem 是面向 AI Agent 的**文件优先记忆管线**：长期记忆以**纯 markdown 文件**
-存储（每个分类一个文件，每个 `##` 标题一个条目），用**内存 BM25 索引**检索，
-再由 **wiki-links** —— `[[category:item]]` 形式的引用 —— 把关键词搜索够不着的
+存储（每个 RecallFile 一个文件，每个 `##` 标题一个条目），用**内存 BM25 索引**检索，
+再由 **wiki-links** —— `[[file:item]]` 形式的引用 —— 把关键词搜索够不着的
 "含义相关"条目连接起来。
 
 它是一个**零强制依赖**的 Python 库。`pip install wikimem` 就是完整系统：
@@ -24,8 +24,8 @@ wikimem 把它倒了过来。记忆**就是**一个 markdown 文件夹。其余�
 
 库里的一切都从这四条推导而来（XnneHangLab ADR-0001 定稿）：
 
-1. **markdown 文件是唯一事实源。** 每个分类一个文件，位于 `category/`
-   （`memory/category/preferences.md`）；日记事件按天落在 `diary/` 下。
+1. **markdown 文件是唯一事实源。** 每个 RecallFile 一个文件，位于 `wiki/`
+   （`memory/wiki/preferences.md`）；日记事件按天落在 `diary/` 下。
    每个 `##` 标题一个条目。可以直接阅读、编辑、diff —— 你的编辑器就是管理界面。
 2. **磁盘上没有不可读的真相。** 一切派生产物（索引、向量缓存）都可删除、
    可从文件重建。BM25 索引在启动时于内存中构建，永不落盘。
@@ -65,7 +65,7 @@ embedding 路径只在构造 `MemoryIndex` 时传入 `embedder` 才会运行。
 
 Pre-alpha（`0.1.0.dev0`），对照 XnneHangLab ADR-0001 按里程碑逐步构建：
 
-- **M1 ✅ —— 存储层**：分类文件、条目模型 + 溯源元数据、wiki-link 解析、
+- **M1 ✅ —— 存储层**：RecallFile、条目模型 + 溯源元数据、wiki-link 解析、
   `journal.jsonl`、原子写入
 - **M2 ✅ —— 检索**：内存 BM25（字符 bigram 兜底，`[zh]` extra 提供 jieba）、
   一跳 wiki-link 展开、token 预算、explain
