@@ -26,7 +26,7 @@ Two properties set it apart from the wiki:
 
 The framework never generates or judges entry content — the vivid paragraph
 (scene, feeling, and fact together) is written by the host's memorize step. It
-may carry ``[[category:item]]`` wiki-links back into the state layer.
+may carry ``[[file:item]]`` wiki-links back into the state layer.
 """
 
 from __future__ import annotations
@@ -38,11 +38,11 @@ from pathlib import Path
 
 from ._serialize import atomic_write, parse_meta, render_meta
 from .journal import Journal
-from .models import DiaryEntry
+from .models import DiaryItem
 from .store import JOURNAL_FILENAME
 
 # Layout, not serialization format (see wikimem._serialize): the diary's own
-# subdirectory under the store root, parallel to ``category/`` for wiki files.
+# subdirectory under the store root, parallel to ``wiki/`` for wiki files.
 DIARY_DIRNAME = "diary"
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -103,7 +103,7 @@ class Diary:
         owner: str | None = None,
         source_conv: str | None = None,
         tz: tzinfo | None = None,
-    ) -> DiaryEntry:
+    ) -> DiaryItem:
         """Append one event to its day file and return the stored entry.
 
         The event's identity is three coordinates, all derivable from ``ts``:
@@ -138,7 +138,7 @@ class Diary:
         date = _validate_date(date)
         time = _validate_time(time)
 
-        entry = DiaryEntry(
+        entry = DiaryItem(
             date=date,
             time=time,
             content=text,
@@ -167,11 +167,11 @@ class Diary:
             return []
         return sorted(p.stem for p in self._dir.glob("*.md") if _DATE_RE.match(p.stem))
 
-    def day(self, date: str) -> list[DiaryEntry]:
+    def day(self, date: str) -> list[DiaryItem]:
         """All entries for one day, in file (chronological) order."""
         return self._read_day(_validate_date(date))
 
-    def window(self, start: str, end: str) -> list[DiaryEntry]:
+    def window(self, start: str, end: str) -> list[DiaryItem]:
         """All entries in the inclusive date range ``[start, end]``, chronological.
 
         Bounds are ``YYYY-MM-DD``; a reversed pair is swapped. This is the
@@ -182,7 +182,7 @@ class Diary:
         end = _validate_date(end)
         if start > end:
             start, end = end, start
-        out: list[DiaryEntry] = []
+        out: list[DiaryItem] = []
         for d in self.dates():  # ascending
             if d > end:
                 break  # dates() is sorted, so nothing past `end` can still match
@@ -195,11 +195,11 @@ class Diary:
     def _day_path(self, date: str) -> Path:
         return self._dir / f"{date}.md"
 
-    def _read_day(self, date: str) -> list[DiaryEntry]:
+    def _read_day(self, date: str) -> list[DiaryItem]:
         path = self._day_path(date)
         if not path.exists():
             return []
-        entries: list[DiaryEntry] = []
+        entries: list[DiaryItem] = []
         time: str | None = None
         body: list[str] = []
         meta: dict[str, str] = {}
@@ -208,7 +208,7 @@ class Diary:
             nonlocal time, body, meta
             if time is not None:
                 entries.append(
-                    DiaryEntry(
+                    DiaryItem(
                         date=date,
                         time=time,
                         content="\n".join(body).strip(),
@@ -237,7 +237,7 @@ class Diary:
         # may legitimately repeat, so every heading is its own entry.
         return entries
 
-    def _write_day(self, date: str, entries: list[DiaryEntry]) -> None:
+    def _write_day(self, date: str, entries: list[DiaryItem]) -> None:
         path = self._day_path(date)
         if not entries:
             if path.exists():

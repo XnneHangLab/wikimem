@@ -8,7 +8,7 @@ rebuilds on the next sync.
 
 On-disk layout: ``vectors.keys.jsonl`` starts with a header line
 ``{"vectors_file": "vectors-<n>.npy"}`` followed by one
-``{"category","name","hash"}`` line per matrix row. Each sync writes a NEW
+``{"file","name","hash"}`` line per matrix row. Each sync writes a NEW
 versioned ``.npy`` instead of replacing the current one — Windows forbids
 replacing/deleting a file that is still memory-mapped by a live index, so
 old versions are removed best-effort and swept on later syncs.
@@ -106,7 +106,7 @@ class VectorCache:
     """Persistent, incrementally-updated vector cache on disk.
 
     ``vectors.keys.jsonl`` (plain text — readability lives here) maps rows to
-    ``(category, name, content-hash)`` and names the current ``.npy`` file.
+    ``(file, name, content-hash)`` and names the current ``.npy`` file.
     """
 
     def __init__(self, root: Path | str) -> None:
@@ -143,7 +143,7 @@ class VectorCache:
         *,
         batch_size: int = 64,
     ) -> tuple[list[dict], np.ndarray | None]:
-        """Bring the cache in line with ``entries`` ((category, name), text).
+        """Bring the cache in line with ``entries`` ((file, name), text).
 
         Rows whose content hash is unchanged are reused without an API call;
         new/changed texts are embedded in batches. Returns keys + a read-only
@@ -152,18 +152,18 @@ class VectorCache:
         """
         old_keys, old_matrix = self.load()
         keys = [
-            {"category": category, "name": name, "hash": content_hash(text)}
-            for (category, name), text in entries
+            {"file": file, "name": name, "hash": content_hash(text)}
+            for (file, name), text in entries
         ]
         if keys == old_keys and old_matrix is not None:
             return old_keys, old_matrix
 
-        old_rows = {(k["category"], k["name"], k["hash"]): i for i, k in enumerate(old_keys)}
+        old_rows = {(k["file"], k["name"], k["hash"]): i for i, k in enumerate(old_keys)}
         rows: list[np.ndarray | None] = []
         pending_texts: list[str] = []
         pending_slots: list[int] = []
         for key, ((_, _), text) in zip(keys, entries):
-            reuse = old_rows.get((key["category"], key["name"], key["hash"]))
+            reuse = old_rows.get((key["file"], key["name"], key["hash"]))
             if reuse is not None and old_matrix is not None:
                 rows.append(np.array(old_matrix[reuse], dtype=np.float32, copy=True))
             else:

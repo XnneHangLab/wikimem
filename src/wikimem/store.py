@@ -1,4 +1,4 @@
-"""Storage layer: one markdown file per category (under ``category/``), ``##`` sections as items.
+"""Storage layer: one wiki RecallFile per topic (under ``wiki/``), ``##`` sections as items.
 
 Serialization format (human-first — the file IS the database):
 
@@ -24,28 +24,28 @@ from typing import TYPE_CHECKING
 
 from ._serialize import atomic_write, now_iso, parse_meta, render_meta
 from .journal import Journal
-from .models import MemoryItem
+from .models import RecallItem
 
 if TYPE_CHECKING:
     from .diary import Diary
 
 # Store layout, not serialization format — keep out of `_serialize`.
 JOURNAL_FILENAME = "journal.jsonl"
-# Wiki category files live under this subdir (parallel to the diary's ``diary/``)
-# so an unbounded, growing set of categories never clutters the store root.
-CATEGORY_DIRNAME = "category"
+# Wiki RecallFiles live under this subdir (parallel to the diary's ``diary/``)
+# so an unbounded, growing set of them never clutters the store root.
+WIKI_DIRNAME = "wiki"
 
-_CATEGORY_RE = re.compile(r"^[a-z0-9_][a-z0-9_-]*$")
+_FILE_RE = re.compile(r"^[a-z0-9_][a-z0-9_-]*$")
 _ITEM_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 
 
-def validate_category(category: str) -> str:
-    """Categories are ASCII slugs: they double as filenames and link prefixes."""
-    if not _CATEGORY_RE.match(category):
+def validate_file(file: str) -> str:
+    """RecallFile names are ASCII slugs: they double as filenames and link prefixes."""
+    if not _FILE_RE.match(file):
         raise ValueError(
-            f"invalid category {category!r}: expected lowercase slug like 'daily_life'"
+            f"invalid RecallFile name {file!r}: expected lowercase slug like 'daily_life'"
         )
-    return category
+    return file
 
 
 def sanitize_item_name(name: str) -> str:
@@ -59,7 +59,7 @@ def sanitize_item_name(name: str) -> str:
 
 
 class MemoryStore:
-    """Read/write access to a store's ``category/`` directory of markdown files."""
+    """Read/write access to a store's ``wiki/`` RecallFiles."""
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
@@ -91,22 +91,22 @@ class MemoryStore:
 
     # ---------------------------------------------------------------- reads
 
-    def categories(self) -> list[str]:
-        cat_dir = self.root / CATEGORY_DIRNAME
-        if not cat_dir.exists():
+    def files(self) -> list[str]:
+        wiki_dir = self.root / WIKI_DIRNAME
+        if not wiki_dir.exists():
             return []
-        return sorted(p.stem for p in cat_dir.glob("*.md"))
+        return sorted(p.stem for p in wiki_dir.glob("*.md"))
 
-    def items(self, category: str | None = None) -> list[MemoryItem]:
-        cats = [category] if category is not None else self.categories()
-        out: list[MemoryItem] = []
-        for cat in cats:
-            out.extend(self._read_category(cat))
+    def items(self, file: str | None = None) -> list[RecallItem]:
+        names = [file] if file is not None else self.files()
+        out: list[RecallItem] = []
+        for cat in names:
+            out.extend(self._read_file(cat))
         return out
 
-    def get(self, category: str, name: str) -> MemoryItem | None:
+    def get(self, file: str, name: str) -> RecallItem | None:
         wanted = " ".join(name.split())
-        for item in self._read_category(category):
+        for item in self._read_file(file):
             if item.name == wanted:
                 return item
         return None
@@ -115,60 +115,60 @@ class MemoryStore:
 
     def add(
         self,
-        category: str,
+        file: str,
         name: str,
         content: str,
         *,
         owner: str | None = None,
         source_conv: str | None = None,
         ts: str | None = None,
-    ) -> MemoryItem:
+    ) -> RecallItem:
         """Insert a new item, or replace the same-named item (update)."""
-        validate_category(category)
-        item = MemoryItem(
-            category=category,
+        validate_file(file)
+        item = RecallItem(
+            file=file,
             name=sanitize_item_name(name),
             content=content.strip(),
             owner=owner,
             source_conv=source_conv,
             ts=ts or now_iso(),
         )
-        existing = self._read_category(category)
+        existing = self._read_file(file)
         replaced = any(cur.name == item.name for cur in existing)
         merged = [cur for cur in existing if cur.name != item.name] + [item]
-        self._write_category(category, merged)
+        self._write_file(file, merged)
         self._revision += 1
         self.journal.append(
             "update" if replaced else "add",
-            category=category,
+            file=file,
             name=item.name,
             owner=owner,
             source_conv=source_conv,
         )
         return item
 
-    def remove(self, category: str, name: str, *, owner: str | None = None) -> bool:
-        validate_category(category)
+    def remove(self, file: str, name: str, *, owner: str | None = None) -> bool:
+        validate_file(file)
         wanted = " ".join(name.split())
-        existing = self._read_category(category)
+        existing = self._read_file(file)
         kept = [cur for cur in existing if cur.name != wanted]
         if len(kept) == len(existing):
             return False
-        self._write_category(category, kept)
+        self._write_file(file, kept)
         self._revision += 1
-        self.journal.append("remove", category=category, name=wanted, owner=owner)
+        self.journal.append("remove", file=file, name=wanted, owner=owner)
         return True
 
     # ------------------------------------------------------------ internals
 
-    def _category_path(self, category: str) -> Path:
-        return self.root / CATEGORY_DIRNAME / f"{category}.md"
+    def _file_path(self, file: str) -> Path:
+        return self.root / WIKI_DIRNAME / f"{file}.md"
 
-    def _read_category(self, category: str) -> list[MemoryItem]:
-        path = self._category_path(category)
+    def _read_file(self, file: str) -> list[RecallItem]:
+        path = self._file_path(file)
         if not path.exists():
             return []
-        items: list[MemoryItem] = []
+        items: list[RecallItem] = []
         name: str | None = None
         body: list[str] = []
         meta: dict[str, str] = {}
@@ -178,8 +178,8 @@ class MemoryStore:
             if name is not None:
                 content = "\n".join(body).strip()
                 items.append(
-                    MemoryItem(
-                        category=category,
+                    RecallItem(
+                        file=file,
                         name=name,
                         content=content,
                         owner=meta.get("owner"),
@@ -205,16 +205,16 @@ class MemoryStore:
         flush()
 
         # Hand edits may duplicate a heading; last occurrence wins.
-        deduped: dict[str, MemoryItem] = {item.name: item for item in items}
+        deduped: dict[str, RecallItem] = {item.name: item for item in items}
         return list(deduped.values())
 
-    def _write_category(self, category: str, items: list[MemoryItem]) -> None:
-        path = self._category_path(category)
+    def _write_file(self, file: str, items: list[RecallItem]) -> None:
+        path = self._file_path(file)
         if not items:
             if path.exists():
                 path.unlink()
             return
-        parts: list[str] = [f"# {category}", ""]
+        parts: list[str] = [f"# {file}", ""]
         for item in items:
             parts.append(f"## {item.name}")
             parts.append("")

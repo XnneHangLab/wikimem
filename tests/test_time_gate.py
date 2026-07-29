@@ -34,8 +34,8 @@ def names(result) -> list[str]:
     return [e.item.name for e in result.items]
 
 
-def categories(result) -> set[str]:
-    return {e.item.category for e in result.items}
+def files(result) -> set[str]:
+    return {e.item.file for e in result.items}
 
 
 # ------------------------------------------------------- the motivating query
@@ -79,8 +79,8 @@ def test_wiki_is_not_filtered_by_the_window(store: MemoryStore):
     result = index.retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
 
     # both layers can surface together: the event and the standing preference
-    assert "diary" in categories(result)
-    assert "preferences" in categories(result)
+    assert "diary" in files(result)
+    assert "preferences" in files(result)
 
 
 def test_wiki_only_query_still_works_with_a_window(store: MemoryStore):
@@ -98,7 +98,7 @@ def test_no_window_leaves_diary_out_and_behaviour_unchanged(store: MemoryStore):
 
     assert result.time_range is None
     assert result.time_range_source is None
-    assert "diary" not in categories(result)  # diary only enters through a window
+    assert "diary" not in files(result)  # diary only enters through a window
 
 
 def test_unparseable_time_words_do_not_open_a_window(store: MemoryStore):
@@ -116,7 +116,7 @@ def test_empty_query_with_window_returns_the_window_newest_first(store: MemorySt
     result = index.retrieve("", time_range=("2026-07-22", "2026-07-23"))
 
     assert names(result) == ["2026-07-23 19:00", "2026-07-22 19:30", "2026-07-22 15:00"]
-    assert categories(result) == {"diary"}
+    assert files(result) == {"diary"}
 
 
 def test_empty_query_without_window_still_returns_nothing(store: MemoryStore):
@@ -173,7 +173,7 @@ def test_diary_entry_carries_its_provenance(tmp_path: Path):
     s = MemoryStore(tmp_path / "memory")
     s.diary.append("去了海边。", date="2026-07-24", time="09:00", owner="user:xnne")
     (hit,) = MemoryIndex(s).retrieve("海边", time_range=("2026-07-24", "2026-07-24")).items
-    assert hit.item.category == "diary"
+    assert hit.item.file == "diary"
     assert hit.item.name == "2026-07-24 09:00"
     assert hit.item.owner == "user:xnne"
     assert hit.item.ts is not None

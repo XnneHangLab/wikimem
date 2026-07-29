@@ -38,7 +38,7 @@ def test_append_and_read_roundtrip(diary: Diary):
     assert read.owner == "user:xnne"
     assert read.source_conv == "conv_20260721"
     assert read.ts  # stamped automatically
-    assert [link.category for link in read.links] == ["work"]
+    assert [link.file for link in read.links] == ["work"]
 
 
 def test_file_is_human_readable_markdown(diary: Diary, tmp_path: Path):
@@ -207,12 +207,12 @@ def test_store_diary_shares_one_journal(tmp_path: Path):
     assert [e["action"] for e in store.journal.entries()] == ["add", "diary"]
 
 
-def test_diary_files_are_not_wiki_categories(tmp_path: Path):
+def test_diary_files_are_not_wiki_files(tmp_path: Path):
     store = MemoryStore(tmp_path / "memory")
     store.add("preferences", "a", "x")
     store.diary.append("事件", date="2026-07-21", time="09:00")
-    # diary lives in the diary/ subdir, so it never shows up as a category.
-    assert store.categories() == ["preferences"]
+    # diary lives in the diary/ subdir, so it never shows up as a file.
+    assert store.files() == ["preferences"]
     assert [item.name for item in store.items()] == ["a"]
 
 
