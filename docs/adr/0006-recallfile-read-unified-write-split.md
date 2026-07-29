@@ -1,4 +1,4 @@
-# ADR-0006: RecallFile — 读侧统一，写侧分立
+# ADR-0006: RecallFile / RecallItem — 读侧统一，写侧分立
 
 - **状态**：Proposed（2026-07-28，随 PR 评审定稿）
 - **日期**：2026-07-28

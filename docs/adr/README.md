@@ -19,6 +19,6 @@ wikimem 的架构决策记录（Architecture Decision Records）。
 | [0003](./0003-vectors-cache-metadata.md) | 向量缓存记录 model/dim — 失配警告并降级，而非报错重建   | Proposed |
 | [0004](./0004-api-contract-thin-shells.md) | 接口契约 — Python API 是契约，CLI 与 serve 都是薄壳     | Proposed |
 | [0005](./0005-memorize-injected-llm.md) | memorize — 注入式 LLM，两种宿主驱动写入（后台抽取 / Agent 工具） | Proposed |
-| [0006](./0006-recallfile-read-unified-write-split.md) | RecallFile — 读侧统一，写侧分立（含日记向量化、粒度取舍） | Proposed |
+| [0006](./0006-recallfile-read-unified-write-split.md) | RecallFile / RecallItem — 读侧统一，写侧分立（含命名收敛、日记向量化、jsonl 不迁 sqlite） | Proposed |
 
 > 0001 / 0002 的完整设计讨论（三种时间融合方案的对比分析）见博客《RRF vs Hybrid Search》（nyakku.moe，撰写中）。
