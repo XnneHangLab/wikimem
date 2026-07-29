@@ -4,7 +4,7 @@ layout: home
 hero:
   name: wikimem
   text: File-first memory for AI agents
-  tagline: Categories + wiki-links over plain markdown. No database, no embedding model, no docker — pip install wikimem and it works.
+  tagline: RecallFiles + wiki-links over plain markdown. No database, no embedding model, no docker — pip install wikimem and it works.
   image:
     src: /logo.svg
     alt: wikimem
@@ -22,10 +22,10 @@ hero:
 features:
   - icon: 📄
     title: Markdown is the database
-    details: One file per category, one ## heading per item. Read them, edit them, git-diff them — your editor is the admin UI.
+    details: One RecallFile per topic, one ## heading per item. Read them, edit them, git-diff them — your editor is the admin UI.
   - icon: 🔗
     title: Wiki-links recall what search misses
-    details: "[[category:item]] links written at memorization time connect meaning-related items that share no words. Expansion is a mechanical one-hop lookup — no LLM, no graph database."
+    details: "[[file:item]] links written at memorization time connect meaning-related items that share no words. Expansion is a mechanical one-hop lookup — no LLM, no graph database."
   - icon: 🔍
     title: Zero-dependency BM25
     details: In-memory index, rebuilt free at startup. Chinese works out of the box via character bigrams; install [zh] for jieba.

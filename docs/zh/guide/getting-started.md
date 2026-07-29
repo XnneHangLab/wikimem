@@ -27,7 +27,7 @@ store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日
 看看它写下了什么：
 
 ```markdown
-<!-- memory/category/preferences.md -->
+<!-- memory/wiki/preferences.md -->
 # preferences
 
 ## likes-the-sea
@@ -37,12 +37,12 @@ store.add("daily_life", "beach-trip-plan", "计划夏天去海边旅行，看日
 <!-- wikimem: owner=user:xnne | source=conv_20260710 | ts=2026-07-10T03:00:00+00:00 -->
 ```
 
-分类是一个 markdown 文件；条目是一个 `##` 小节；溯源信息放在一条 HTML 注释里；
+RecallFile 是一个 markdown 文件；条目是一个 `##` 小节；溯源信息放在一条 HTML 注释里；
 `[[daily_life:beach-trip-plan]]` 这条 wiki-link 就是内容中的纯文本。
 读这份文件不需要 wikimem。
 
 ::: tip 命名规则
-分类名是小写 ASCII slug（`daily_life`、`preferences`）—— 它同时充当文件名和
+RecallFile 名是小写 ASCII slug（`daily_life`、`preferences`）—— 它同时充当文件名和
 链接前缀。条目名可以是任何语言，但不能含 `[[ ]] : | #`。精确规则见
 [磁盘格式](/zh/reference/file-format)。
 :::
@@ -77,14 +77,14 @@ for entry in result.items:
 
 ```
 memory/
-├── category/             ← wiki（状态层）：每个分类一个文件
+├── wiki/             ← wiki（状态层）：每个 RecallFile 一个文件
 │   ├── preferences.md    ← 事实源
 │   └── daily_life.md     ← 事实源
 ├── diary/                ← diary（事件层）：每天一个文件
 └── journal.jsonl         ← 追加式审计日志（wiki + diary 共用）
 ```
 
-基础管线持久化的东西就这些。wiki 分类在 `category/`，日记在 `diary/`。
+基础管线持久化的东西就这些。wiki RecallFile 在 `wiki/`，日记在 `diary/`。
 BM25 索引住在内存里，启动时从 wiki 文件重建 —— 没有要迁移的、要备份的、
 会损坏的状态。如果启用 [embedding 融合](/zh/guide/embedding-fusion)，
 markdown 旁边会多出一个向量缓存（`vectors-*.npy` + `vectors.keys.jsonl`）
@@ -99,7 +99,7 @@ markdown 旁边会多出一个向量缓存（`vectors-*.npy` + `vectors.keys.jso
   **进程之外**的修改（编辑器、git checkout）要靠调用 `index.rebuild()`
   被感知 —— 或者干脆重启，反正索引本来就在启动时重建。
 - 手改时如果重复了同名 `##` 标题，读取按**最后一个为准**；
-  下次写该分类时重复项自动消失。
+  下次写该 RecallFile 时重复项自动消失。
 
 ## 下一步
 

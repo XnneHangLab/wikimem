@@ -15,7 +15,7 @@ Exit codes follow shell conventions: `0` ok, `1` no match / not found,
 
 ## `ls`
 
-Categories with item counts:
+RecallFiles with item counts:
 
 ```
 $ wikimem -s ./memory ls
@@ -23,9 +23,9 @@ daily_life      1
 preferences     2
 ```
 
-## `show <category> [name]`
+## `show <file> [name]`
 
-Prints a category — or a single item — exactly the way the file stores it
+Prints a RecallFile — or a single item — exactly the way the file stores it
 (headings, content, provenance comment):
 
 ```
@@ -40,7 +40,7 @@ $ wikimem -s ./memory show preferences likes-the-sea
 ## `grep <pattern> [-i]`
 
 Regex search over item names and content, grep-style output prefixed with
-`category:name`:
+`file:name`:
 
 ```
 $ wikimem -s ./memory grep 海边
@@ -77,7 +77,7 @@ belongs to host configuration, not shell inspection.
 
 ## `graph [--format mermaid|json]`
 
-Parses `[[category:item]]` links out of the markdown and exports the
+Parses `[[file:item]]` links out of the markdown and exports the
 wiki-link relation graph. This is the replacement for the retired Neo4j
 semantic-layer visualization: no infrastructure, same picture.
 
@@ -97,5 +97,5 @@ don't exist in the store are kept as dashed `unresolved` nodes so dangling
 references stay visible.
 
 `--format json` emits `{"nodes": [...], "edges": [...]}` (each node:
-`id` / `category` / `name` / `unresolved`) for host frontends to render
+`id` / `RecallFile` / `name` / `unresolved`) for host frontends to render
 themselves.

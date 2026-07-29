@@ -47,7 +47,7 @@ with BM25 at this stage — BM25 itself is never disabled.
 ## 3. One-hop link expansion
 
 With `expand_links=True` (the default), each hit's wiki-links are resolved by
-exact `(category, name)` lookup and the target items are appended **directly
+exact `(file, name)` lookup and the target items are appended **directly
 after their hit**, marked `source="link"`:
 
 ```text

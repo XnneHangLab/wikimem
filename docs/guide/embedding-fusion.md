@@ -62,7 +62,7 @@ everything else:
 
 ```
 memory/
-├── category/
+├── wiki/
 │   ├── preferences.md
 │   └── daily_life.md
 ├── journal.jsonl
@@ -74,7 +74,7 @@ memory/
   are embedded (batched 64 per request); unchanged rows are reused without an
   API call. Renaming an item re-embeds just that item.
 - **Readable where it matters.** `vectors.keys.jsonl` is plain JSONL — a
-  header naming the current `.npy`, then one `{category, name, hash}` line per
+  header naming the current `.npy`, then one `{file, name, hash}` line per
   row. The matrix itself is opaque numbers, but *what maps to what* is text.
 - **Deletable, always.** Remove both files and the cache rebuilds on the next
   sync. It is never the source of truth.

@@ -77,7 +77,7 @@ described in [On-disk Format](/reference/file-format#vector-cache-embed-extra)):
 
 - `vectors.keys.jsonl` — plain text: a header line
   `{"vectors_file": "vectors-000003.npy"}`, then one
-  `{"category", "name", "hash"}` line per matrix row.
+  `{"file", "name", "hash"}` line per matrix row.
 - `vectors-NNNNNN.npy` — float32 matrix, one row per key line, loaded
   `mmap_mode="r"`.
 
@@ -90,7 +90,7 @@ rebuilds; corruption is never trusted or propagated.
 ### `sync(entries, embedder, *, batch_size=64)`
 
 ```python
-entries: list[tuple[tuple[str, str], str]]   # ((category, name), text)
+entries: list[tuple[tuple[str, str], str]]   # ((file, name), text)
 ```
 
 Brings the cache in line with `entries`, in order:

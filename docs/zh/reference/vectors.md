@@ -73,7 +73,7 @@ VectorCache(root: Path | str)
 
 - `vectors.keys.jsonl` —— 明文：头一行
   `{"vectors_file": "vectors-000003.npy"}`，之后矩阵每行对应一条
-  `{"category", "name", "hash"}`。
+  `{"file", "name", "hash"}`。
 - `vectors-NNNNNN.npy` —— float32 矩阵，与 key 行一一对应，
   以 `mmap_mode="r"` 加载。
 
@@ -86,7 +86,7 @@ VectorCache(root: Path | str)
 ### `sync(entries, embedder, *, batch_size=64)`
 
 ```python
-entries: list[tuple[tuple[str, str], str]]   # ((category, name), text)
+entries: list[tuple[tuple[str, str], str]]   # ((file, name), text)
 ```
 
 把缓存对齐到 `entries`（保持顺序）：

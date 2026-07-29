@@ -12,7 +12,7 @@ wikimem --store ./memory <command>    # 或者：python -m wikimem
 
 ## `ls`
 
-列出 categories 与条目数：
+列出 RecallFiles 与条目数：
 
 ```
 $ wikimem -s ./memory ls
@@ -20,9 +20,9 @@ daily_life      1
 preferences     2
 ```
 
-## `show <category> [name]`
+## `show <file> [name]`
 
-按文件存储的原样打印一个 category（或单个条目）——标题、内容、溯源注释：
+按文件存储的原样打印一个 RecallFile（或单个条目）——标题、内容、溯源注释：
 
 ```
 $ wikimem -s ./memory show preferences likes-the-sea
@@ -35,7 +35,7 @@ $ wikimem -s ./memory show preferences likes-the-sea
 
 ## `grep <pattern> [-i]`
 
-对条目名与内容做正则搜索，输出带 `category:name` 前缀（grep 风格）：
+对条目名与内容做正则搜索，输出带 `file:name` 前缀（grep 风格）：
 
 ```
 $ wikimem -s ./memory grep 海边
@@ -67,7 +67,7 @@ CLI 始终走 BM25 路径——embedding 融合需要配置端点，属于宿主
 
 ## `graph [--format mermaid|json]`
 
-从 markdown 中解析 `[[category:item]]`，导出 wiki-link 关系图。这就是 Neo4j 语义层可视化退役后的接替者：零基础设施，同一张图。
+从 markdown 中解析 `[[file:item]]`，导出 wiki-link 关系图。这就是 Neo4j 语义层可视化退役后的接替者：零基础设施，同一张图。
 
 ```
 $ wikimem -s ./memory graph
@@ -82,4 +82,4 @@ graph LR
 
 mermaid 输出可直接粘进任何 markdown 渲染器。store 中不存在的链接目标会保留为虚线 `unresolved` 节点，悬空引用一眼可见。
 
-`--format json` 输出 `{"nodes": [...], "edges": [...]}`（节点字段：`id` / `category` / `name` / `unresolved`），宿主前端可自行渲染。
+`--format json` 输出 `{"nodes": [...], "edges": [...]}`（节点字段：`id` / `RecallFile` / `name` / `unresolved`），宿主前端可自行渲染。
