@@ -1,7 +1,8 @@
 # ADR-0004: 接口契约 — Python API 是契约，CLI 与 serve 都是薄壳
 
-- **状态**：Proposed（2026-07-21，随 PR 评审定稿；CLI 部分为对 [#12](https://github.com/XnneHangLab/wikimem/pull/12) 既成事实的追认）
+- **状态**：Accepted（2026-07-21 提出，随设计 PR [#14](https://github.com/XnneHangLab/wikimem/pull/14) 评审定稿；CLI 部分为对 [#12](https://github.com/XnneHangLab/wikimem/pull/12) 既成事实的追认）
 - **日期**：2026-07-21
+- **实施**：⚠️ 部分落地 —— CLI 薄壳见 [#12](https://github.com/XnneHangLab/wikimem/pull/12)；serve 尚未实现，一度建到 [#21](https://github.com/XnneHangLab/wikimem/pull/21) 后按维护者要求整体关闭（跟踪 issue [#20](https://github.com/XnneHangLab/wikimem/issues/20) 同时关闭），设计保留在本 ADR 中待日后重启
 - **关联**：[XnneHangLab ADR-0001](https://github.com/XnneHangLab/XnneHangLab/blob/dev/docs/adr/0001-llm-mode-memory.md)（零依赖 CLI 清单来源）、XnneHangLab ADR-0004（宿主消费方式）、`docs/reference/api.md`
 
 ## 背景

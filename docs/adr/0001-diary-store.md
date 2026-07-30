@@ -1,7 +1,8 @@
 # ADR-0001: 日记原语 — 事件流与状态层分离
 
-- **状态**：Proposed（2026-07-21，随 PR 评审定稿）
+- **状态**：Accepted（2026-07-21 提出，随设计 PR [#14](https://github.com/XnneHangLab/wikimem/pull/14) 评审定稿）
 - **日期**：2026-07-21
+- **实施**：✅ 已落地 —— [#16](https://github.com/XnneHangLab/wikimem/pull/16) [#17](https://github.com/XnneHangLab/wikimem/pull/17) [#19](https://github.com/XnneHangLab/wikimem/pull/19)（跟踪 issue [#15](https://github.com/XnneHangLab/wikimem/issues/15)）
 - **关联**：[ADR-0002](./0002-time-range-retrieval.md)（时间检索建立在本原语上）、[XnneHangLab ADR-0001](https://github.com/XnneHangLab/XnneHangLab/blob/dev/docs/adr/0001-llm-mode-memory.md)（创始设计与硬约束来源）
 
 ## 背景

@@ -1,7 +1,8 @@
 # ADR-0005: memorize — 注入式 LLM，两种宿主驱动写入（后台抽取 / Agent 工具）
 
-- **状态**：Proposed（2026-07-24，随 PR 评审定稿）
+- **状态**：Accepted（2026-07-24 提出，随设计 PR [#23](https://github.com/XnneHangLab/wikimem/pull/23) 评审定稿）
 - **日期**：2026-07-24
+- **实施**：⚠️ 部分落地 —— 模式 A（后台抽取 `memorize()`）见 [#24](https://github.com/XnneHangLab/wikimem/pull/24)；模式 B（Agent 工具）尚未实现
 - **关联**：[ADR-0001](./0001-diary-store.md)（日记原语，写入对象）、[ADR-0004](./0004-api-contract-thin-shells.md)（契约 = Python API，壳内无业务逻辑）、[XnneHangLab ADR-0001](https://github.com/XnneHangLab/XnneHangLab/blob/dev/docs/adr/0001-llm-mode-memory.md)（硬约束：框架零 LLM、memorize ≤1 次由宿主发起）、[XnneHangLab ADR-0002](https://github.com/XnneHangLab/XnneHangLab/blob/dev/docs/adr/0002-memu-design-not-dependency.md)（借鉴 memU 设计而非引入依赖）、`docs/guide/writing-diary.md`（参考提示词）
 
 ## 背景

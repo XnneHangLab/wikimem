@@ -1,7 +1,8 @@
 # ADR-0006: RecallFile / RecallItem — 读侧统一，写侧分立
 
-- **状态**：Proposed（2026-07-28，随 PR 评审定稿）
+- **状态**：Accepted（2026-07-28 提出，随设计 PR [#28](https://github.com/XnneHangLab/wikimem/pull/28) 评审定稿）
 - **日期**：2026-07-28
+- **实施**：⚠️ 部分落地（编号对应文末「实施」四条）—— ① 改名清扫 [#29](https://github.com/XnneHangLab/wikimem/pull/29)（代码）+ [#30](https://github.com/XnneHangLab/wikimem/pull/30)（文档）、② 形式化 RecallFile [#32](https://github.com/XnneHangLab/wikimem/pull/32)、③ 日记进向量缓存 [#34](https://github.com/XnneHangLab/wikimem/pull/34) 均已落地；④ recency 衰减项 + 日记参与无窗口检索尚未实现，待 bench 数据（同 ADR-0002 §6）
 - **关联**：[ADR-0001](./0001-diary-store.md)（离散判据：事件 vs 状态）、[ADR-0002](./0002-time-range-retrieval.md)（时间门控；§6 recency 衰减项）、[ADR-0004](./0004-api-contract-thin-shells.md)（Python API 是契约）、[ADR-0005](./0005-memorize-injected-llm.md)（memorize 注入式 LLM）、[memU ADR-0006](https://github.com/NevaMind-AI/MemU/blob/main/docs/adr/0006-from-memory-item-category-to-tracked-workspace-memorization.md)（*From Memory Item/Category to a Tracked RecallFile/RecallEntry Store* —— 本决策的对照对象，Accepted 2026-06-30）
 
 ## 背景
