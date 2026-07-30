@@ -291,3 +291,66 @@ def test_corrupt_cache_still_lets_retrieval_run(store, tmp_path):
     (tmp_path / "memory" / "vectors.keys.jsonl").write_text("{broken\n", encoding="utf-8")
     result = MemoryIndex(store, embedder=NamedEmbedder("bge-m3")).retrieve("海边")
     assert result.items  # BM25 carried it; the damaged cache just rebuilt
+
+
+# ------------------------------- ADR-0006 ③: diary vectors, fetched per window
+
+
+def test_diary_gets_semantic_recall_where_bm25_is_blind(tmp_path):
+    """The reason diary needed vectors: it is prose, and prose is BM25's blind spot."""
+    s = MemoryStore(tmp_path / "memory")
+    s.diary.append("下午去了海边，浪很大。", date="2026-07-22", time="15:00")
+    s.diary.append("修了一个 python 的 bug。", date="2026-07-22", time="20:00")
+    window = ("2026-07-22", "2026-07-22")
+
+    # "海滨度假" shares no bigram with "去了海边" — BM25 alone cannot connect them.
+    bm25 = MemoryIndex(s, use_jieba=False).retrieve("海滨度假", time_range=window)
+    assert all("海边" not in r.item.content for r in bm25.items)
+
+    fused = MemoryIndex(s, use_jieba=False, embedder=NamedEmbedder("bge-m3"))
+    result = fused.retrieve("海滨度假", time_range=window)
+    assert result.embedding_used is True
+    assert any("海边" in r.item.content for r in result.items)
+    assert result.items[0].cos_score and result.items[0].cos_score > 0
+
+
+def test_diary_vectors_are_cached_and_only_the_window_is_embedded(tmp_path):
+    """Lazy by design: you pay for the days a query reaches, once ever."""
+    s = MemoryStore(tmp_path / "memory")
+    for day in ("2026-07-20", "2026-07-21", "2026-07-22"):
+        s.diary.append("去了海边。", date=day, time="15:00")
+
+    first = NamedEmbedder("bge-m3")
+    MemoryIndex(s, embedder=first).retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
+    assert first.texts_embedded == 2  # 1 windowed entry + the query, NOT all three days
+
+    again = NamedEmbedder("bge-m3")
+    MemoryIndex(s, embedder=again).retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
+    assert again.texts_embedded == 1  # cache hit: only the query
+    assert (tmp_path / "memory" / "diary-vectors" / "vectors.keys.jsonl").exists()
+
+
+def test_diary_vectors_live_apart_from_the_wiki_cache(tmp_path):
+    """Separate cache, because diary must stay out of ``_docs`` (ADR-0006 §4)."""
+    s = MemoryStore(tmp_path / "memory")
+    s.add("preferences", "likes-the-sea", "喜欢海边。")
+    s.diary.append("去了海边。", date="2026-07-22", time="15:00")
+    index = MemoryIndex(s, embedder=NamedEmbedder("bge-m3"))
+    index.retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
+
+    root = tmp_path / "memory"
+    wiki_keys = (root / "vectors.keys.jsonl").read_text(encoding="utf-8")
+    assert "likes-the-sea" in wiki_keys
+    assert "2026-07-22" not in wiki_keys  # diary never pollutes the wiki matrix
+    # …and without a window the diary still cannot surface at all
+    assert index.retrieve("海边").time_range is None
+
+
+def test_diary_falls_back_to_bm25_when_the_endpoint_dies(tmp_path):
+    s = MemoryStore(tmp_path / "memory")
+    s.diary.append("去了海边。", date="2026-07-22", time="15:00")
+    result = MemoryIndex(s, embedder=BoomEmbedder()).retrieve(
+        "海边", time_range=("2026-07-22", "2026-07-22")
+    )
+    assert result.embedding_used is False
+    assert result.items  # BM25 still answered

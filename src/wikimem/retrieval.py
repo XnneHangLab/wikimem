@@ -35,6 +35,11 @@ _log = logging.getLogger(__name__)
 _K1 = 1.5
 _B = 0.75
 
+#: Diary vectors live beside the wiki cache but in their own directory: diary
+#: must stay out of ``_docs`` (see ``_diary_cosine``), so its rows cannot share
+#: the wiki matrix, whose row order *is* ``_docs``.
+_DIARY_VECTORS_DIRNAME = "diary-vectors"
+
 
 def as_recall_item(entry: DiaryItem) -> RecallItem:
     """A diary entry seen as a RecallItem, so one pipeline ranks both layers.
@@ -266,16 +271,77 @@ class MemoryIndex:
         end = _date.fromisoformat(window[1]) + timedelta(days=days)
         return start.isoformat(), end.isoformat()
 
-    def _cosine_scores(self, query: str, top_k: int) -> dict[int, float] | None:
-        """Row -> cosine score via the vector index; None when the path is off/degraded."""
-        if self._vec_index is None or self._embedder is None:
+    def _diary_cosine(
+        self, query_vec: list[float], docs: list[tuple[RecallItem, Counter[str], int]], offset: int
+    ) -> dict[int, float]:
+        """Cosine for the windowed diary rows, embedding them only if needed.
+
+        Diary vectors live in their own cache (``diary-vectors/``) rather than
+        the wiki matrix, because diary must stay **out** of ``_docs``: anything
+        in there is permanently in the candidate pool, which would let diary
+        surface with no window at all — the thing ADR-0006 §4 defers until a
+        recency decay exists.
+
+        Embedding is **lazy**: only the days a query actually reaches get paid
+        for, once ever (content-hash keyed). A diary grows without bound and
+        most of it is never recalled, so embedding all of it up front would buy
+        vectors nobody asks for — and diary writes do not bump ``revision``, so
+        there is no natural rebuild moment to do it at anyway.
+
+        Returns ``{}`` (not an exception) if the endpoint is down or the cache is
+        unusable — the diary simply falls back to BM25, as it did before.
+        """
+        embedder = self._embedder
+        if not docs or embedder is None:
+            return {}
+        try:
+            import numpy as np  # Lazy-import: [embed] extra
+
+            from .vectors import VectorCache, cache_mismatch
+
+            cache = VectorCache(self._vectors_dir / _DIARY_VECTORS_DIRNAME)
+            if cache_mismatch(cache.header(), embedder) is not None:
+                return {}  # already warned for the wiki cache; stay on BM25 here
+            entries = [
+                ((item.file, item.name), f"{item.name}\n{item.content}") for item, _, _ in docs
+            ]
+            _, matrix = cache.sync(entries, embedder)
+            if matrix is None:
+                return {}
+            q = np.asarray(query_vec, dtype=np.float32)
+            q_norm = float(np.linalg.norm(q))
+            if q_norm == 0.0:
+                return {}
+            rows = np.asarray(matrix, dtype=np.float32)
+            norms = np.linalg.norm(rows, axis=1)
+            norms[norms == 0.0] = 1.0
+            sims = (rows @ q) / (norms * q_norm)
+            return {offset + i: float(s) for i, s in enumerate(sims) if s > 0.0}
+        except Exception:  # noqa: BLE001 - fail-open, same as the wiki cosine path
+            return {}
+
+    def _embed_query(self, query: str) -> list[float] | None:
+        """Embed the query once, for both the wiki and diary cosine paths.
+
+        ``None`` when embedding is off or the endpoint is down — fail-open: a
+        dead endpoint degrades ranking to BM25, it never fails a retrieval.
+        """
+        if self._embedder is None:
             return None
         try:
-            query_vec = self._embedder.embed([query])[0]
+            return self._embedder.embed([query])[0]
+        except Exception:  # noqa: BLE001 - fail-open: endpoint down != retrieval down
+            return None
+
+    def _cosine_scores(self, query_vec: list[float], top_k: int) -> dict[int, float] | None:
+        """Row -> cosine score over the wiki index; None when that path is off."""
+        if self._vec_index is None:
+            return None
+        try:
             return {
                 row: score for row, score in self._vec_index.search(query_vec, top_k) if score > 0.0
             }
-        except Exception:  # noqa: BLE001 - fail-open: embedding endpoint down != retrieval down
+        except Exception:  # noqa: BLE001 - fail-open, same as the rest of this path
             return None
 
     def retrieve(
@@ -366,25 +432,31 @@ class MemoryIndex:
             if score > 0.0:
                 bm25_raw[row] = score
 
-        cos_raw = self._cosine_scores(query, top_k=max(limit * 4, limit))
+        # Only pay for a query embedding if something can consume it: the wiki
+        # index, or a window that pulled diary rows in. With neither (e.g. the
+        # wiki cache was rejected as stale and no window is open) an embed call
+        # would buy nothing.
+        cos_raw: dict[int, float] | None = None
+        query_vec = (
+            self._embed_query(query) if (self._vec_index is not None or diary_docs) else None
+        )
+        if query_vec is not None:
+            wiki_cos = self._cosine_scores(query_vec, top_k=max(limit * 4, limit))
+            # Diary vectors live in their own cache and are fetched per window,
+            # so both layers now carry a cosine signal and fuse on equal terms —
+            # no more "diary ranks on BM25 alone" asymmetry.
+            diary_cos = self._diary_cosine(query_vec, diary_docs, offset=len(self._docs))
+            if wiki_cos is not None or diary_cos:
+                cos_raw = {**(wiki_cos or {}), **diary_cos}
+
         if cos_raw is not None:
             result.embedding_used = True
             bm25_norm = _minmax(bm25_raw)
             cos_norm = _minmax(cos_raw)
             candidates = set(bm25_raw) | set(cos_raw)
-            # Diary rows sit outside the vector cache, so they have no cosine
-            # signal to fuse — they rank on normalized BM25, exactly as every
-            # row does when no embedder is configured. Folding in a zero cosine
-            # instead would scale them down by (1 - fusion_weight) and bury the
-            # diary whenever embedding is on.
-            embedded = len(self._docs)
             fused = {
-                row: (
-                    self._fusion_weight * bm25_norm.get(row, 0.0)
-                    + (1 - self._fusion_weight) * cos_norm.get(row, 0.0)
-                    if row < embedded
-                    else bm25_norm.get(row, 0.0)
-                )
+                row: self._fusion_weight * bm25_norm.get(row, 0.0)
+                + (1 - self._fusion_weight) * cos_norm.get(row, 0.0)
                 for row in candidates
             }
             ranking = [(row, fused[row]) for row in candidates if fused[row] > 0.0]
