@@ -217,9 +217,35 @@ MemoryIndex(
 - `rebuild()` —— 立刻重扫 store。仅在进程外改过文件后需要；
   个人记忆规模下很便宜。
 - `retrieve(query, *, limit=10, budget_tokens=None, expand_links=True,
-  explain=False) -> RetrievalResult` —— 排序、一跳展开、按预算裁剪。
-  0 次 LLM 调用、同步、embedding 路径降级不抛错。
+  explain=False, time_range=None, tz=None) -> RetrievalResult` —— 排序、一跳
+  展开、按预算裁剪。0 次 LLM 调用、同步、embedding 路径降级不抛错。
   语义详见[检索](/zh/guide/retrieval)。
+
+### 时间门控
+
+```python
+index.retrieve("前天晚上吃了什么")                              # 窗口由 query 自己解析
+index.retrieve("吃了什么", time_range=("2026-07-22", "2026-07-22"))  # 或显式传入
+```
+
+窗口把那几天的**日记**条目带进与 wiki **同一个**排序。时间**只过滤候选、不参与
+打分**，因此融合公式原样不动（ADR-0002）。
+
+| 参数 | 含义 |
+|---|---|
+| `time_range` | 闭区间 `("YYYY-MM-DD", "YYYY-MM-DD")`。这是宿主意图识别 / tool call 的出口 |
+| `tz` | 相对表达按哪个日历解析（默认系统本地，与日记文件的命名一致） |
+
+- **两条来路**：显式传 `time_range`，或让**正则快通道**从 query 里找
+  （`昨天` / `前天` / `上周三` / `3天前` / `7月21号` / ISO 日期 —— 见
+  [`parse_time_range`](#parse-time-range)）。它刻意**宁窄勿误**：解析不出就是
+  **无时间意图**，绝不猜。
+- **wiki 永不被时间过滤**：时间轴只属于日记，状态层继续参与竞争。所以"海边"能
+  同时召回*那天去海边的事件*和*喜欢海边这条偏好*。
+- **query 为空 + 有窗口** → 按时间倒序返回该窗口（不用关键词也能回忆某一天）。
+- **窗口内为空会自动放宽**一天再取，而不是回答"没有"，并如实标注
+  （`time_range_widened`）。
+- **没有窗口时行为与从前完全一致**，日记根本不进入检索。
 
 ## RetrievalResult
 
@@ -231,6 +257,12 @@ MemoryIndex(
 | `embedding_used` | `bool` | 仅当余弦路径真的跑了才为 `True` |
 | `dropped` | `list[RetrievedItem]` | 被预算裁掉的 —— 仅 `explain=True` 时填充 |
 | `unresolved_links` | `list[str]` | 目标缺失的链接原文，如 `"[[a:b]]"` |
+| `time_range` | `tuple[str, str] \| None` | 实际生效的窗口（`None` = 未开门控） |
+| `time_range_source` | `str \| None` | `"explicit"`（你传的）或 `"parsed"`（正则快通道） |
+| `time_range_widened` | `bool` | 窗口内为空，已向两侧各放宽一天 |
+
+经门控浮现的日记条目会以 `RecallItem` 的形态出现：`file="diary"`、
+`name="YYYY-MM-DD HH:MM"` —— 因此它和任何条目一样参与排序、链接展开与预算裁剪。
 
 ## RetrievedItem
 
@@ -259,6 +291,28 @@ journal.entries() -> list[dict]
 追加式 JSONL 日志，两个原语共用。`MemoryStore` 自动写它（`add` / `update` /
 `remove`），`Diary.append` 写 `diary` 行 —— 很少需要自己构造。行格式见
 [磁盘格式](/zh/reference/file-format#journal-jsonl)。
+
+## parse_time_range
+
+```python
+parse_time_range(text, *, tz=None, today=None) -> tuple[str, str] | None
+```
+
+[时间门控](#时间门控)背后的正则快通道：把时间表达变成闭区间
+`("YYYY-MM-DD", "YYYY-MM-DD")` 窗口；没有就返回 `None`。纯 stdlib ——
+不引 `dateparser` / `arrow` / `TimeNLP`。
+
+覆盖：`今天` `昨天` `前天` `大前天` `明天` `后天`、`N天前`（含 `三天前`）、
+`N days ago`、`上周三` / `这周五`、`上周` / `这周`、`N周前`、`上个月` / `这个月`、
+`2026-07-21`、`2026/7/1`、`7月21号`。英文 `today` / `yesterday` / `tomorrow`
+需要词边界。
+
+**宁窄勿误**：`最近`、`前几天`、`以前` 这类没有可辩护边界的表达**故意**返回
+`None`。错窗口会**静默藏起**正确的记忆，比不开窗更糟 —— 调用方根本不知道搜索
+被过滤了。正则是框架的地板；能听懂"我们吵架那天"的宿主 LLM 是天花板，它直接传
+`time_range=`。
+
+`today=` 可钉住"现在"，用于确定性测试或宿主自带时钟。
 
 ## 分词
 

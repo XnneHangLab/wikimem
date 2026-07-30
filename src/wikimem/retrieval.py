@@ -218,9 +218,16 @@ class MemoryIndex:
         Two ways in (ADR-0002 §1): the caller passes one — the exit of a host's
         intent recognition or tool call — or the regex fast path finds one in the
         query. Nothing else: regex is the floor, the host's LLM is the ceiling.
+
+        A reversed pair is normalized here, once, so everything downstream can
+        assume ``start <= end``. :meth:`Diary.window` tolerates a reversed pair
+        on its own, but leaving one in place would report the window backwards
+        in ``explain`` and — worse — make :meth:`_widen` shrink it rather than
+        widen it, silently disabling the empty-window fallback.
         """
         if time_range is not None:
-            return time_range, "explicit"
+            start, end = time_range
+            return (end, start) if start > end else (start, end), "explicit"
         parsed = parse_time_range(query, tz=tz)
         return (parsed, "parsed") if parsed is not None else (None, None)
 

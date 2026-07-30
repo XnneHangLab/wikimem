@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sys
+from datetime import date as _date
 from pathlib import Path
 
 from .models import RecallItem
@@ -119,16 +120,31 @@ def _cmd_explain(
     budget: int | None,
     expand_links: bool,
     use_jieba: bool | None,
+    time_range: tuple[str, str] | None = None,
 ) -> int:
     index = MemoryIndex(store, use_jieba=use_jieba)
     result = index.retrieve(
-        query, limit=limit, budget_tokens=budget, expand_links=expand_links, explain=True
+        query,
+        limit=limit,
+        budget_tokens=budget,
+        expand_links=expand_links,
+        explain=True,
+        time_range=time_range,
     )
     print(f"query: {query}")
     print(f"query tokens: {', '.join(tokenize(query, use_jieba=use_jieba)) or '(none)'}")
     print(
         f"ranking: {'BM25 + cosine (fused)' if result.embedding_used else 'BM25 (embedding: off)'}"
     )
+    # The time gate filters candidates before ranking, so say plainly whether one
+    # was applied — a silently narrowed search is the failure mode to avoid.
+    if result.time_range is None:
+        print("time gate: none (whole store)")
+    else:
+        start, end = result.time_range
+        span = start if start == end else f"{start}..{end}"
+        note = " (widened: window was empty)" if result.time_range_widened else ""
+        print(f"time gate: {span}  [{result.time_range_source}]{note}")
     if not result.items:
         print("no results")
         return 1
@@ -245,6 +261,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="force jieba on/off for CJK tokenization (default: auto)",
     )
+    p_explain.add_argument(
+        "--time-range",
+        metavar="START..END",
+        default=None,
+        help="gate on a diary window, e.g. 2026-07-21..2026-07-22 (a single "
+        "date works too). Omit to let the query's own time words open one.",
+    )
 
     p_graph = sub.add_parser("graph", help="export the wiki-link graph")
     p_graph.add_argument("--format", choices=("mermaid", "json"), default="mermaid")
@@ -273,6 +296,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "grep":
         return _cmd_grep(store, args.pattern, args.ignore_case)
     if args.command == "explain":
+        window: tuple[str, str] | None = None
+        if args.time_range:
+            start, _, end = args.time_range.partition("..")
+            window = (start.strip(), (end or start).strip())
+            try:  # fail with a usage message, not a traceback
+                for bound in window:
+                    _date.fromisoformat(bound)
+            except ValueError:
+                print(
+                    f"wikimem: bad --time-range {args.time_range!r}: "
+                    "expected YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD",
+                    file=sys.stderr,
+                )
+                return 2
         return _cmd_explain(
             store,
             args.query,
@@ -280,6 +317,7 @@ def main(argv: list[str] | None = None) -> int:
             budget=args.budget,
             expand_links=not args.no_links,
             use_jieba=args.jieba,
+            time_range=window,
         )
     if args.command == "graph":
         return _cmd_graph(store, args.format)

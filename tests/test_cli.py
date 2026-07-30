@@ -177,3 +177,40 @@ def test_graph_mermaid_renders_edges(store_dir, capsys):
     # dangling target gets the dashed style
     assert ":::unresolved" in out
     assert "classDef unresolved" in out
+
+
+# ------------------------------------------------------- explain: time gate
+
+
+@pytest.fixture()
+def diary_dir(store_dir):
+    """The wiki fixture plus two diary days, for time-gate explain output."""
+    s = MemoryStore(store_dir)
+    s.diary.append("晚饭吃了拉面，汤头很浓。", date="2026-07-22", time="19:30")
+    s.diary.append("今天吃了寿司。", date="2026-07-24", time="19:00")
+    return store_dir
+
+
+def test_explain_reports_no_time_gate_by_default(store_dir, capsys):
+    run(store_dir, "explain", "海边")
+    assert "time gate: none (whole store)" in capsys.readouterr().out
+
+
+def test_explain_reports_an_explicit_window(diary_dir, capsys):
+    run(diary_dir, "explain", "拉面", "--time-range", "2026-07-22")
+    out = capsys.readouterr().out
+    assert "time gate: 2026-07-22  [explicit]" in out
+    assert "diary:2026-07-22 19:30" in out  # the diary entry reached the ranking
+
+
+def test_explain_renders_a_range_and_flags_widening(diary_dir, capsys):
+    run(diary_dir, "explain", "拉面", "--time-range", "2026-07-21..2026-07-21")
+    out = capsys.readouterr().out
+    # 07-21 holds nothing, so the gate relaxes a day either side and says so.
+    assert "2026-07-20..2026-07-22" in out
+    assert "widened" in out
+
+
+def test_explain_rejects_a_malformed_time_range(diary_dir, capsys):
+    assert run(diary_dir, "explain", "x", "--time-range", "garbage") == 2
+    assert "bad --time-range" in capsys.readouterr().err

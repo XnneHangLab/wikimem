@@ -70,7 +70,23 @@ unresolved links: [[missing:gone]]
 
 Flags: `--limit N` (ranked hits, default 10), `--budget N` (token budget —
 dropped entries are listed), `--no-links` (disable one-hop expansion),
-`--jieba` / `--no-jieba` (force the CJK tokenizer path; default auto).
+`--jieba` / `--no-jieba` (force the CJK tokenizer path; default auto),
+`--time-range START..END` (gate on a diary window).
+
+Every run prints a `time gate:` line, so a narrowed search is never silent:
+
+```bash
+wikimem -s memory/ explain "拉面" --time-range 2026-07-22
+#   time gate: 2026-07-22  [explicit]
+wikimem -s memory/ explain "前天吃了什么"
+#   time gate: 2026-07-22  [parsed]          ← found in the query itself
+wikimem -s memory/ explain "海边"
+#   time gate: none (whole store)
+```
+
+A single date is shorthand for a one-day window. When the window holds nothing
+it relaxes a day either side and the line says `(widened: window was empty)`.
+Semantics: [the time gate](/reference/api#the-time-gate).
 
 The CLI always runs the BM25 path — embedding fusion needs an endpoint and
 belongs to host configuration, not shell inspection.
