@@ -182,3 +182,71 @@ def test_cache_sync_roundtrip(tmp_path):
     # Removing an entry shrinks the cache on next sync.
     keys2, matrix2 = cache.sync(entries[:1], embedder)
     assert len(keys2) == 1 and matrix2 is not None and matrix2.shape[0] == 1
+
+
+# ------------------------------------------- ADR-0003: model/dim in the header
+
+
+class NamedEmbedder(StubEmbedder):
+    """A StubEmbedder that advertises a model id, like ``HttpEmbedder`` does."""
+
+    def __init__(self, model: str):
+        super().__init__()
+        self.model = model
+
+
+def test_header_records_model_and_dim(store, tmp_path):
+    MemoryIndex(store, embedder=NamedEmbedder("bge-m3")).retrieve("海边")
+    head = VectorCache(tmp_path / "memory").header()
+    assert head["model"] == "bge-m3"
+    assert head["dim"] == 4  # StubEmbedder's space
+    assert head["vectors_file"].startswith("vectors-")
+
+
+def test_model_mismatch_degrades_to_bm25_without_reembedding(store, tmp_path):
+    built = NamedEmbedder("bge-m3")
+    assert MemoryIndex(store, embedder=built).retrieve("海边").embedding_used is True
+
+    swapped = NamedEmbedder("text-embedding-3-small")  # same width, other space
+    result = MemoryIndex(store, embedder=swapped).retrieve("海边")
+
+    assert result.embedding_used is False  # ranked by BM25 instead
+    assert swapped.calls == 0  # and it did NOT silently spend money re-embedding
+    # the stale cache is left on disk untouched, for the user to delete
+    assert VectorCache(tmp_path / "memory").header()["model"] == "bge-m3"
+
+
+def test_model_mismatch_warns_once(store, caplog):
+    MemoryIndex(store, embedder=NamedEmbedder("bge-m3")).retrieve("海边")
+    index = MemoryIndex(store, embedder=NamedEmbedder("other-model"))
+    with caplog.at_level("WARNING"):
+        index.retrieve("海边")
+        index.rebuild()  # a second build must not re-warn
+        index.retrieve("海边")
+    warnings = [r for r in caplog.records if "vector cache was built with model" in r.message]
+    assert len(warnings) == 1
+    assert "BM25 only" in warnings[0].getMessage()
+
+
+def test_same_model_reuses_the_cache(store):
+    MemoryIndex(store, embedder=NamedEmbedder("bge-m3")).retrieve("海边")
+    again = NamedEmbedder("bge-m3")
+    assert MemoryIndex(store, embedder=again).retrieve("海边").embedding_used is True
+    # Only the query was embedded — the documents came from the cache untouched
+    # (unchanged content hashes → no API call for them).
+    assert again.texts_embedded == 1
+
+
+def test_legacy_header_without_model_keeps_working_and_is_stamped(store, tmp_path):
+    """ADR-0003 §4: a cache predating the fields is tolerated, not invalidated."""
+    root = tmp_path / "memory"
+    MemoryIndex(store, embedder=StubEmbedder()).retrieve("海边")  # no model attr
+    assert "model" not in VectorCache(root).header()
+
+    # still usable by a *named* embedder — unlabelled means "unknown", not "wrong"
+    named = NamedEmbedder("bge-m3")
+    assert MemoryIndex(store, embedder=named).retrieve("海边").embedding_used is True
+    # and the next write fills the field in, with no re-embed needed
+    store.add("preferences", "new-item", "新的一条。")
+    MemoryIndex(store, embedder=named).retrieve("海边")
+    assert VectorCache(root).header()["model"] == "bge-m3"

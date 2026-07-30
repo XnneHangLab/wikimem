@@ -162,13 +162,20 @@ wiki 与 diary 共用一份日志；`action` 区分二者，目标字段也相�
 纯文本，让"谁对应谁"始终可读：
 
 ```json
-{"vectors_file": "vectors-000003.npy"}
+{"vectors_file": "vectors-000003.npy", "model": "bge-m3", "dim": 1024}
 {"file": "preferences", "name": "likes-the-sea", "hash": "9f8a…"}
 {"file": "daily_life", "name": "beach-trip-plan", "hash": "b774…"}
 ```
 
-头一行指明当前矩阵文件；之后按矩阵行序一行一条。`hash` 是被 embed 文本
-（`name\ncontent`）的 sha256 —— 增量同步的钥匙（哈希没变 = 不发 API 请求）。
+头一行指明当前矩阵文件，**以及这批向量是哪个 model / 多少维产出的**；之后按矩阵
+行序一行一条。`hash` 是被 embed 文本（`name\ncontent`）的 sha256 —— 增量同步的
+钥匙（哈希没变 = 不发 API 请求）。
+
+之所以要记这个戳：**换成同样维度的另一个 embedding 端点是完全看不出来的** ——
+缓存里每条向量都来自另一个语义空间，没有任何报错可指，只是召回悄悄变差。失配时
+wikimem **警告一次，然后只用 BM25 排序**；它**绝不自动重嵌**，因为那要花钱 ——
+想花的时候，把这两个文件删掉即可。旧版没有这两个字段的 header 继续可用，并在
+下次写入时被补上（ADR-0003）。
 
 ### `vectors-NNNNNN.npy`
 

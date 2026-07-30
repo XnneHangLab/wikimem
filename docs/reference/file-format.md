@@ -174,13 +174,22 @@ so unlike the BM25 index they are cached persistently — but they are still
 Plain text, so *what maps to what* stays readable:
 
 ```json
-{"vectors_file": "vectors-000003.npy"}
+{"vectors_file": "vectors-000003.npy", "model": "bge-m3", "dim": 1024}
 {"file": "preferences", "name": "likes-the-sea", "hash": "9f8a…"}
 {"file": "daily_life", "name": "beach-trip-plan", "hash": "b774…"}
 ```
 
-Header line names the current matrix file; then one line per row, in matrix
-row order. `hash` is the sha256 of the embedded text (`name\ncontent`) —
+Header line names the current matrix file **and the model/dim that produced
+these vectors**; then one line per row, in matrix row order.
+
+That stamp exists because a swapped embedding endpoint of the *same width* is
+otherwise invisible: every cached vector would come from a different semantic
+space with no error to point at, just quietly worse recall. On a mismatch
+wikimem **warns once and ranks with BM25 only**; it never re-embeds by itself,
+because that costs money. Delete these two files when you want to pay for it.
+A legacy header without the fields keeps working and is stamped on the next
+write (ADR-0003).
+ `hash` is the sha256 of the embedded text (`name\ncontent`) —
 the key that makes syncs incremental (unchanged hash = no API call).
 
 ### `vectors-NNNNNN.npy`

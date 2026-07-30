@@ -17,6 +17,7 @@ a down endpoint (``RetrievalResult.embedding_used`` tells you which path ran).
 
 from __future__ import annotations
 
+import logging
 import math
 from collections import Counter
 from dataclasses import dataclass, field
@@ -28,6 +29,8 @@ from .models import DiaryItem, RecallItem
 from .store import MemoryStore
 from .timeparse import TimeRange, parse_time_range
 from .tokenize import est_tokens, tokenize
+
+_log = logging.getLogger(__name__)
 
 _K1 = 1.5
 _B = 0.75
@@ -126,6 +129,7 @@ class MemoryIndex:
         self._avg_len = 0.0
         self._by_key: dict[tuple[str, str], RecallItem] = {}
         self._vec_index = None  # wikimem.vectors.MemmapVectorIndex, rows == doc order
+        self._warned_cache_mismatch = False  # warn once per index, not per rebuild
 
     # ----------------------------------------------------------------- build
 
@@ -146,9 +150,28 @@ class MemoryIndex:
         self._built_revision = self.store.revision
         self._vec_index = None
         if self._embedder is not None and self._docs:
-            from .vectors import MemmapVectorIndex, VectorCache  # Lazy-import: [embed] extra
+            from .vectors import (  # Lazy-import: [embed] extra
+                MemmapVectorIndex,
+                VectorCache,
+                cache_mismatch,
+            )
 
             cache = VectorCache(self._vectors_dir)
+            reason = cache_mismatch(cache.header(), self._embedder)
+            if reason is not None:
+                # Warn once, then run BM25-only for this session (ADR-0003).
+                # Re-embedding costs real money, so it is never automatic:
+                # delete the two cache files when you want to pay for it.
+                if not self._warned_cache_mismatch:
+                    self._warned_cache_mismatch = True
+                    _log.warning(
+                        "%s — ignoring it and ranking with BM25 only. Delete %s "
+                        "and the vectors-*.npy beside it to re-embed with the "
+                        "current model.",
+                        reason,
+                        cache.keys_path,
+                    )
+                return
             entries = [
                 ((item.file, item.name), f"{item.name}\n{item.content}")
                 for item, _, _ in self._docs
