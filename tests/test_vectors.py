@@ -354,3 +354,57 @@ def test_diary_falls_back_to_bm25_when_the_endpoint_dies(tmp_path):
     )
     assert result.embedding_used is False
     assert result.items  # BM25 still answered
+
+
+def test_diary_cache_accumulates_across_windows(tmp_path):
+    """Each window must ADD to the diary cache, never evict the last one.
+
+    With plain (replace) sync semantics the cache only ever held the most recent
+    window, so switching days re-embedded entries that had already been paid for
+    — quietly turning "embedded once, ever" into "re-embedded on every switch".
+    """
+    s = MemoryStore(tmp_path / "memory")
+    for day in ("2026-07-21", "2026-07-22", "2026-07-23"):
+        s.diary.append("去了海边。", date=day, time="15:00")
+
+    embedder = NamedEmbedder("bge-m3")
+    index = MemoryIndex(s, embedder=embedder)
+
+    def ask(day):
+        index.retrieve("海边", time_range=(day, day))
+
+    ask("2026-07-21")
+    ask("2026-07-22")
+    before = embedder.texts_embedded
+    ask("2026-07-21")  # revisit: only the query should cost anything
+    assert embedder.texts_embedded == before + 1
+
+    ask("2026-07-23")
+    keys, _ = VectorCache(tmp_path / "memory" / "diary-vectors").load()
+    assert sorted(k["file"] for k in keys) == ["2026-07-21", "2026-07-22", "2026-07-23"]
+
+
+def test_merge_keeps_scores_attached_to_the_right_entries(tmp_path):
+    """Under merge, carried rows come first — so rows must map by key, not index."""
+    s = MemoryStore(tmp_path / "memory")
+    s.diary.append("修了一个 python bug。", date="2026-07-21", time="10:00")
+    s.diary.append("下午去了海边，浪很大。", date="2026-07-22", time="15:00")
+    index = MemoryIndex(s, use_jieba=False, embedder=NamedEmbedder("bge-m3"))
+
+    index.retrieve("python", time_range=("2026-07-21", "2026-07-21"))  # day 1 cached first
+    result = index.retrieve("海滨度假", time_range=("2026-07-22", "2026-07-22"))
+
+    hit = result.items[0]
+    assert "海边" in hit.item.content  # not day 1's row wearing day 2's score
+    assert hit.cos_score and hit.cos_score > 0
+
+
+def test_wiki_cache_still_replaces_not_merges(tmp_path):
+    """merge=False stays the default: the wiki caller passes the whole store,
+    so a removed item must drop out of the cache rather than linger."""
+    cache = VectorCache(tmp_path)
+    embedder = StubEmbedder()
+    entries = [(("c", "one"), "咖啡"), (("c", "two"), "海边")]
+    cache.sync(entries, embedder)
+    keys, _ = cache.sync(entries[:1], embedder)
+    assert [k["name"] for k in keys] == ["one"]

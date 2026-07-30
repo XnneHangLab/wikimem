@@ -305,18 +305,32 @@ class MemoryIndex:
             entries = [
                 ((item.file, item.name), f"{item.name}\n{item.content}") for item, _, _ in docs
             ]
-            _, matrix = cache.sync(entries, embedder)
+            # merge=True: the cache accumulates every day ever queried, so a new
+            # window adds to it instead of evicting the last one.
+            keys, matrix = cache.sync(entries, embedder, merge=True)
             if matrix is None:
                 return {}
             q = np.asarray(query_vec, dtype=np.float32)
             q_norm = float(np.linalg.norm(q))
             if q_norm == 0.0:
                 return {}
-            rows = np.asarray(matrix, dtype=np.float32)
-            norms = np.linalg.norm(rows, axis=1)
+            # Map by key: under merge, carried rows come first, so a row's
+            # position is not its position in `docs`.
+            row_of = {(k["file"], k["name"]): i for i, k in enumerate(keys)}
+            wanted = [
+                (offset + j, row_of[(item.file, item.name)])
+                for j, (item, _, _) in enumerate(docs)
+                if (item.file, item.name) in row_of
+            ]
+            if not wanted:
+                return {}
+            # Score only the window's rows — the matrix holds every day ever
+            # queried, and cosine over all of it would grow with history.
+            block = np.asarray(matrix[[row for _, row in wanted]], dtype=np.float32)
+            norms = np.linalg.norm(block, axis=1)
             norms[norms == 0.0] = 1.0
-            sims = (rows @ q) / (norms * q_norm)
-            return {offset + i: float(s) for i, s in enumerate(sims) if s > 0.0}
+            sims = (block @ q) / (norms * q_norm)
+            return {doc_row: float(s) for (doc_row, _), s in zip(wanted, sims) if s > 0.0}
         except Exception:  # noqa: BLE001 - fail-open, same as the wiki cosine path
             return {}
 
