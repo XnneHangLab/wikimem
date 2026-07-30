@@ -283,8 +283,11 @@ formula is untouched (ADR-0002).
 | `time_range_widened` | `bool` | the window held nothing, so it was relaxed by a day either side |
 
 A diary entry that surfaces through the gate arrives as a `RecallItem` with
-`file="diary"` and `name="YYYY-MM-DD HH:MM"`, so it ranks, expands links, and
-gets budget-trimmed like any other item.
+`file` = the **day** (`"2026-07-21"`) and `name` = the **time** (`"14:30"`) — the
+day file *is* its RecallFile, exactly as `wiki/preferences.md` is
+`file="preferences"` (ADR-0006). So it ranks, expands links, and gets
+budget-trimmed like any other item, with no synthetic `"diary"` bucket. The
+bridge is public as `as_recall_item(entry)`.
 
 ## RetrievedItem
 

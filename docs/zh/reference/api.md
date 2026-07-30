@@ -261,8 +261,11 @@ index.retrieve("吃了什么", time_range=("2026-07-22", "2026-07-22"))  # 或�
 | `time_range_source` | `str \| None` | `"explicit"`（你传的）或 `"parsed"`（正则快通道） |
 | `time_range_widened` | `bool` | 窗口内为空，已向两侧各放宽一天 |
 
-经门控浮现的日记条目会以 `RecallItem` 的形态出现：`file="diary"`、
-`name="YYYY-MM-DD HH:MM"` —— 因此它和任何条目一样参与排序、链接展开与预算裁剪。
+经门控浮现的日记条目会以 `RecallItem` 的形态出现：`file` 是**那一天**
+（`"2026-07-21"`）、`name` 是**那个时刻**（`"14:30"`）—— 天文件**就是**它的
+RecallFile，与 `wiki/preferences.md` 对应 `file="preferences"` 完全同构
+（ADR-0006）。因此它和任何条目一样参与排序、链接展开与预算裁剪，不需要一个
+凭空捏出来的 `"diary"` 桶。这层转换以 `as_recall_item(entry)` 公开。
 
 ## RetrievedItem
 

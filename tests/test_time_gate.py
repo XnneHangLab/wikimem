@@ -79,7 +79,7 @@ def test_wiki_is_not_filtered_by_the_window(store: MemoryStore):
     result = index.retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
 
     # both layers can surface together: the event and the standing preference
-    assert "diary" in files(result)
+    assert "2026-07-22" in files(result)  # the diary day file
     assert "preferences" in files(result)
 
 
@@ -115,8 +115,14 @@ def test_empty_query_with_window_returns_the_window_newest_first(store: MemorySt
     index = MemoryIndex(store)
     result = index.retrieve("", time_range=("2026-07-22", "2026-07-23"))
 
-    assert names(result) == ["2026-07-23 19:00", "2026-07-22 19:30", "2026-07-22 15:00"]
-    assert files(result) == {"diary"}
+    # newest first, ordered by (day, time) — a diary item's name is only ``HH:MM``,
+    # so sorting on the name alone would interleave the two days.
+    assert [(e.item.file, e.item.name) for e in result.items] == [
+        ("2026-07-23", "19:00"),
+        ("2026-07-22", "19:30"),
+        ("2026-07-22", "15:00"),
+    ]
+    assert files(result) == {"2026-07-22", "2026-07-23"}
 
 
 def test_empty_query_without_window_still_returns_nothing(store: MemoryStore):
@@ -173,8 +179,9 @@ def test_diary_entry_carries_its_provenance(tmp_path: Path):
     s = MemoryStore(tmp_path / "memory")
     s.diary.append("去了海边。", date="2026-07-24", time="09:00", owner="user:xnne")
     (hit,) = MemoryIndex(s).retrieve("海边", time_range=("2026-07-24", "2026-07-24")).items
-    assert hit.item.file == "diary"
-    assert hit.item.name == "2026-07-24 09:00"
+    # the day file IS the RecallFile; the HH:MM heading IS the item name
+    assert hit.item.file == "2026-07-24"
+    assert hit.item.name == "09:00"
     assert hit.item.owner == "user:xnne"
     assert hit.item.ts is not None
 
