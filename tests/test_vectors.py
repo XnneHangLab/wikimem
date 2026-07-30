@@ -4,7 +4,13 @@ import numpy as np
 import pytest
 
 from wikimem import MemoryIndex, MemoryStore
-from wikimem.vectors import HttpEmbedder, MemmapVectorIndex, VectorCache
+from wikimem.vectors import (
+    HttpEmbedder,
+    MemmapVectorIndex,
+    VectorCache,
+    cache_mismatch,
+    model_id,
+)
 
 
 class StubEmbedder:
@@ -250,3 +256,38 @@ def test_legacy_header_without_model_keeps_working_and_is_stamped(store, tmp_pat
     store.add("preferences", "new-item", "新的一条。")
     MemoryIndex(store, embedder=named).retrieve("海边")
     assert VectorCache(root).header()["model"] == "bge-m3"
+
+
+def test_httpembedder_is_labelled_so_the_guard_works_in_production():
+    """The guard reads ``embedder.model`` — assert the shipped client has one.
+
+    ``model_id`` returning ``None`` would make ``cache_mismatch`` a silent no-op
+    on the real path, i.e. ADR-0003 present in tests and absent in production.
+    """
+    assert model_id(HttpEmbedder("https://api.example.com/v1", "bge-m3")) == "bge-m3"
+    assert cache_mismatch({"model": "other"}, HttpEmbedder("https://x/v1", "bge-m3"))
+    assert cache_mismatch({"model": "bge-m3"}, HttpEmbedder("https://x/v1", "bge-m3")) is None
+
+
+def test_corrupt_keys_file_is_treated_as_no_cache_not_a_crash(tmp_path):
+    """A damaged *derived* file must never take down retrieval.
+
+    The module's contract is "corruption is never trusted" — treat it as absent
+    and let the next sync rebuild. Before this, ``load()`` raised
+    ``JSONDecodeError`` straight through ``sync`` → ``rebuild`` → ``retrieve``.
+    """
+    cache = VectorCache(tmp_path)
+    cache.sync([(("wiki", "a"), "hello"), (("wiki", "b"), "world")], StubEmbedder())
+
+    lines = cache.keys_path.read_text(encoding="utf-8").splitlines()
+    lines[2] = "{corrupt"  # a broken key line, with the .npy still present
+    cache.keys_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert cache.load() == ([], None)  # no exception
+    assert cache.header() == {}  # and both readers agree it is unusable
+
+
+def test_corrupt_cache_still_lets_retrieval_run(store, tmp_path):
+    (tmp_path / "memory" / "vectors.keys.jsonl").write_text("{broken\n", encoding="utf-8")
+    result = MemoryIndex(store, embedder=NamedEmbedder("bge-m3")).retrieve("海边")
+    assert result.items  # BM25 carried it; the damaged cache just rebuilt

@@ -129,7 +129,10 @@ class MemoryIndex:
         self._avg_len = 0.0
         self._by_key: dict[tuple[str, str], RecallItem] = {}
         self._vec_index = None  # wikimem.vectors.MemmapVectorIndex, rows == doc order
-        self._warned_cache_mismatch = False  # warn once per index, not per rebuild
+        # Warn once per index, not per rebuild. An index holds one embedder for
+        # its whole life, so there is exactly one possible mismatch to report —
+        # "once per index" and "once per mismatch" are the same thing here.
+        self._warned_cache_mismatch = False
 
     # ----------------------------------------------------------------- build
 

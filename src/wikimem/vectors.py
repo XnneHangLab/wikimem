@@ -150,6 +150,24 @@ class VectorCache:
 
     # ------------------------------------------------------------------ read
 
+    def _read_keys_file(self) -> list[dict] | None:
+        """Every JSON line of the keys file, or ``None`` if it is unreadable.
+
+        One reader for both :meth:`header` and :meth:`load`, so the two can
+        never disagree about whether a cache is usable. Unparseable content
+        yields ``None`` — "corruption is never trusted", and the caller treats
+        that as *no cache* rather than raising: a damaged **derived** file must
+        not take down retrieval, which is fail-open by contract. The next sync
+        rebuilds it.
+        """
+        if not self.keys_path.exists():
+            return None
+        try:
+            lines = self.keys_path.read_text(encoding="utf-8").splitlines()
+            return [json.loads(line) for line in lines if line.strip()]
+        except (OSError, ValueError):
+            return None
+
     def header(self) -> dict:
         """The cache header, or ``{}`` when there is no readable cache.
 
@@ -157,31 +175,21 @@ class VectorCache:
         produced with (ADR-0003). A legacy cache predating those fields simply
         omits them — that is tolerated, not an error.
         """
-        if not self.keys_path.exists():
+        parsed = self._read_keys_file()
+        if not parsed:
             return {}
-        for line in self.keys_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                try:
-                    parsed = json.loads(line)
-                except ValueError:
-                    return {}
-                return parsed if isinstance(parsed, dict) else {}
-        return {}
+        return parsed[0] if isinstance(parsed[0], dict) else {}
 
     def load(self) -> tuple[list[dict], np.ndarray | None]:
-        if not self.keys_path.exists():
+        parsed = self._read_keys_file()
+        if not parsed:
             return [], None
-        lines = [
-            line for line in self.keys_path.read_text(encoding="utf-8").splitlines() if line.strip()
-        ]
-        if not lines:
-            return [], None
-        header = json.loads(lines[0])
-        data_name = header.get("vectors_file")
+        header = parsed[0]
+        data_name = header.get("vectors_file") if isinstance(header, dict) else None
         data_path = self.root / data_name if data_name else None
         if data_path is None or not data_path.exists():
             return [], None
-        keys = [json.loads(line) for line in lines[1:]]
+        keys = parsed[1:]
         matrix = np.load(data_path, mmap_mode="r")
         if len(keys) != len(matrix):  # torn state — treat as absent, resync rebuilds
             return [], None
