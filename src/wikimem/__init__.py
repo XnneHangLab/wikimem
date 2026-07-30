@@ -3,7 +3,14 @@
 from .diary import Diary
 from .journal import Journal
 from .links import parse_wiki_links
-from .memorize import DIARY_PROMPT, LLM, memorize
+from .memorize import (
+    DIARY_PROMPT,
+    DIARY_TOOL_DESCRIPTION,
+    LLM,
+    diary_tool,
+    handle_diary_tool,
+    memorize,
+)
 from .models import DiaryItem, RecallItem, WikiLink
 from .retrieval import MemoryIndex, RetrievalResult, RetrievedItem, as_recall_item
 from .store import MemoryStore, sanitize_item_name, validate_file
@@ -12,6 +19,7 @@ from .tokenize import est_tokens, tokenize
 
 __all__ = [
     "DIARY_PROMPT",
+    "DIARY_TOOL_DESCRIPTION",
     "LLM",
     "Diary",
     "DiaryItem",
@@ -24,7 +32,9 @@ __all__ = [
     "TimeRange",
     "WikiLink",
     "as_recall_item",
+    "diary_tool",
     "est_tokens",
+    "handle_diary_tool",
     "memorize",
     "parse_time_range",
     "parse_wiki_links",

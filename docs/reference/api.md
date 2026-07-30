@@ -159,6 +159,37 @@ The bundled reference prompt (English instructions; entries are written in the
 parameter is why wikimem ships a single default instead of a per-language
 matrix.
 
+### The diary tool
+
+```python
+diary_tool() -> dict                  # function-call schema for append_diary(content)
+handle_diary_tool(
+    diary, args, **append_kwargs,     # args: JSON string or already-parsed dict
+) -> DiaryItem
+```
+
+The second memorize mode (ADR-0005): instead of extracting after the turn, the
+character calls a tool **during** it. Register `diary_tool()` with your agent and
+route `append_diary` calls to `handle_diary_tool()`.
+
+**Zero LLM calls** — the agent already wrote the content, so the handler only
+validates and appends. The schema exposes **only `content`**: a model has no
+clock, so `date` / `time` / `owner` come from the host as keyword arguments and
+are forwarded to [`Diary.append`](#diary).
+
+**Raises, unlike `memorize()`.** Invalid JSON, a non-object, a missing or
+non-string `content`, or any argument beyond `content` raises `ValueError`.
+`memorize()` returning `[]` means "nothing worth keeping"; a broken tool call
+means the character *tried* to save something and it did not land — so the
+message is phrased to be handed straight back as the tool result. Guide, with
+the full agent loop:
+[Writing the Diary](/guide/writing-diary#the-other-way-the-character-writes-it-herself).
+
+### `DIARY_TOOL_DESCRIPTION`
+
+The tool's description, carrying the same style rules as `DIARY_PROMPT` — one
+recipe for both modes, so they cannot drift into different voices.
+
 ## Naming helpers
 
 ```python
