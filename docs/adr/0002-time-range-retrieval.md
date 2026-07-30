@@ -1,7 +1,8 @@
 # ADR-0002: 时间检索 — time_range 门控 + 正则快通道，不做第三路融合
 
-- **状态**：Proposed（2026-07-21，随 PR 评审定稿）
+- **状态**：Accepted（2026-07-21 提出，随设计 PR [#14](https://github.com/XnneHangLab/wikimem/pull/14) 评审定稿）
 - **日期**：2026-07-21
+- **实施**：⚠️ 部分落地 —— 时间门控本体已落地：[#26](https://github.com/XnneHangLab/wikimem/pull/26) [#27](https://github.com/XnneHangLab/wikimem/pull/27) [#31](https://github.com/XnneHangLab/wikimem/pull/31)（跟踪 issue [#25](https://github.com/XnneHangLab/wikimem/issues/25)）；§6 的 recency 衰减项尚未实现，默认值待 bench 数据，与 ADR-0006 ④ 同属一个里程碑
 - **关联**：[ADR-0001](./0001-diary-store.md)（日记原语，本决策的检索对象）、[memU ADR-0007](https://github.com/NevaMind-AI/MemU/blob/main/docs/adr/0007-agentic-file-memory-v3.md)（min-max 融合公式来源）、XnneHangLab ADR-0004（宿主侧时间意图识别 tool call）
 
 ## 背景

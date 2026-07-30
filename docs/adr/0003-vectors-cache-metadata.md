@@ -1,7 +1,8 @@
 # ADR-0003: 向量缓存记录 model/dim — 失配警告并降级，而非报错重建
 
-- **状态**：Proposed（2026-07-21，随 PR 评审定稿）
+- **状态**：Accepted（2026-07-21 提出，随设计 PR [#14](https://github.com/XnneHangLab/wikimem/pull/14) 评审定稿）
 - **日期**：2026-07-21
+- **实施**：✅ 已落地 —— [#33](https://github.com/XnneHangLab/wikimem/pull/33)
 - **关联**：[XnneHangLab ADR-0001](https://github.com/XnneHangLab/XnneHangLab/blob/dev/docs/adr/0001-llm-mode-memory.md)（四次修订：向量分层与 keys.jsonl 形态）、`docs/reference/vectors.md`
 
 ## 背景
