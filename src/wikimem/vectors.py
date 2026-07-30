@@ -102,6 +102,41 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def model_id(embedder: object) -> str | None:
+    """The embedder's model identifier, if it advertises one.
+
+    Taken as-is from the host's configuration — no normalization, so two aliases
+    for the same model read as different (ADR-0003 accepts that over fuzzy
+    matching). An embedder without a ``model`` attribute is simply unlabelled.
+    """
+    value = getattr(embedder, "model", None)
+    return value if isinstance(value, str) and value else None
+
+
+def cache_mismatch(header: dict, embedder: object) -> str | None:
+    """Why this cache cannot be trusted for ``embedder``, or ``None`` if it can.
+
+    Guards the one path in wikimem that would otherwise fail *silently*: swap the
+    embedding endpoint for a different model of the same width and every cached
+    vector is from another semantic space — no exception, no wrong answer you can
+    point at, just quietly worse recall (ADR-0003).
+
+    A legacy header with no ``model`` is **not** a mismatch: it predates the
+    field, so it keeps working and gets stamped on the next write.
+    """
+    if not header:
+        return None
+    cached, configured = header.get("model"), model_id(embedder)
+    if cached is None or configured is None:
+        return None  # unlabelled cache, or unlabelled embedder — nothing to compare
+    if cached != configured:
+        return (
+            f"vector cache was built with model {cached!r} but the configured "
+            f"model is {configured!r}"
+        )
+    return None
+
+
 class VectorCache:
     """Persistent, incrementally-updated vector cache on disk.
 
@@ -115,20 +150,46 @@ class VectorCache:
 
     # ------------------------------------------------------------------ read
 
-    def load(self) -> tuple[list[dict], np.ndarray | None]:
+    def _read_keys_file(self) -> list[dict] | None:
+        """Every JSON line of the keys file, or ``None`` if it is unreadable.
+
+        One reader for both :meth:`header` and :meth:`load`, so the two can
+        never disagree about whether a cache is usable. Unparseable content
+        yields ``None`` — "corruption is never trusted", and the caller treats
+        that as *no cache* rather than raising: a damaged **derived** file must
+        not take down retrieval, which is fail-open by contract. The next sync
+        rebuilds it.
+        """
         if not self.keys_path.exists():
+            return None
+        try:
+            lines = self.keys_path.read_text(encoding="utf-8").splitlines()
+            return [json.loads(line) for line in lines if line.strip()]
+        except (OSError, ValueError):
+            return None
+
+    def header(self) -> dict:
+        """The cache header, or ``{}`` when there is no readable cache.
+
+        Carries ``vectors_file`` plus the ``model`` / ``dim`` the vectors were
+        produced with (ADR-0003). A legacy cache predating those fields simply
+        omits them — that is tolerated, not an error.
+        """
+        parsed = self._read_keys_file()
+        if not parsed:
+            return {}
+        return parsed[0] if isinstance(parsed[0], dict) else {}
+
+    def load(self) -> tuple[list[dict], np.ndarray | None]:
+        parsed = self._read_keys_file()
+        if not parsed:
             return [], None
-        lines = [
-            line for line in self.keys_path.read_text(encoding="utf-8").splitlines() if line.strip()
-        ]
-        if not lines:
-            return [], None
-        header = json.loads(lines[0])
-        data_name = header.get("vectors_file")
+        header = parsed[0]
+        data_name = header.get("vectors_file") if isinstance(header, dict) else None
         data_path = self.root / data_name if data_name else None
         if data_path is None or not data_path.exists():
             return [], None
-        keys = [json.loads(line) for line in lines[1:]]
+        keys = parsed[1:]
         matrix = np.load(data_path, mmap_mode="r")
         if len(keys) != len(matrix):  # torn state — treat as absent, resync rebuilds
             return [], None
@@ -188,7 +249,9 @@ class VectorCache:
 
         matrix = np.stack([row for row in rows if row is not None])
         data_name = self._next_data_name()
-        self._write_atomic(data_name, keys, matrix)
+        # A legacy header without model/dim gets them filled in here, on the next
+        # write — no upgrade step, no invalidation (ADR-0003 §4).
+        self._write_atomic(data_name, keys, matrix, model=model_id(embedder))
         self._sweep(keep=data_name)
         return self.load()
 
@@ -202,15 +265,29 @@ class VectorCache:
                 highest = max(highest, int(match.group(1)))
         return f"vectors-{highest + 1:06d}.npy"
 
-    def _write_atomic(self, data_name: str, keys: list[dict], matrix: np.ndarray) -> None:
+    def _write_atomic(
+        self,
+        data_name: str,
+        keys: list[dict],
+        matrix: np.ndarray,
+        *,
+        model: str | None = None,
+    ) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         fd, tmp_vec = tempfile.mkstemp(dir=self.root, suffix=".npy")
         os.close(fd)
         np.save(tmp_vec, matrix)  # mkstemp name already ends with .npy — no rename surprise
         os.replace(tmp_vec, self.root / data_name)
         fd, tmp_keys = tempfile.mkstemp(dir=self.root, suffix=".jsonl")
+        # Stamp which model/dim produced these vectors (ADR-0003): without it, a
+        # swapped embedding endpoint of the same width degrades retrieval
+        # silently, with nothing on disk to explain why.
+        head: dict[str, object] = {"vectors_file": data_name}
+        if model:
+            head["model"] = model
+        head["dim"] = int(matrix.shape[1]) if matrix.ndim == 2 else 0
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps({"vectors_file": data_name}) + "\n")
+            f.write(json.dumps(head) + "\n")
             for key in keys:
                 f.write(json.dumps(key, ensure_ascii=False) + "\n")
         os.replace(tmp_keys, self.keys_path)
