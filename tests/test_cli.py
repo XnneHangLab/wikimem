@@ -200,7 +200,7 @@ def test_explain_reports_an_explicit_window(diary_dir, capsys):
     run(diary_dir, "explain", "拉面", "--time-range", "2026-07-22")
     out = capsys.readouterr().out
     assert "time gate: 2026-07-22  [explicit]" in out
-    assert "diary:2026-07-22 19:30" in out  # the diary entry reached the ranking
+    assert "2026-07-22:19:30" in out  # the diary entry reached the ranking
 
 
 def test_explain_renders_a_range_and_flags_widening(diary_dir, capsys):

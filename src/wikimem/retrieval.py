@@ -32,27 +32,24 @@ from .tokenize import est_tokens, tokenize
 _K1 = 1.5
 _B = 0.75
 
-#: Category shown for diary entries that surface through retrieval. Diary files
-#: live in ``diary/``, not ``wiki/``, so this never collides with a real
-#: wiki RecallFile — it is a display/dedup key, not a place on disk.
-DIARY_FILE = "diary"
 
+def as_recall_item(entry: DiaryItem) -> RecallItem:
+    """A diary entry seen as a RecallItem, so one pipeline ranks both layers.
 
-def _entry_as_item(entry: DiaryItem) -> RecallItem:
-    """View a diary entry as an item, so one pipeline ranks both layers.
+    Both primitives are the same "RecallFile of ``##`` blocks" (ADR-0006): the
+    day file *is* the RecallFile, and the ``## HH:MM`` heading *is* the item
+    name — so ``diary/2026-07-21.md`` maps to ``file="2026-07-21"``,
+    ``name="14:30"``, exactly as ``wiki/preferences.md`` maps to
+    ``file="preferences"``. No synthetic ``"diary"`` bucket is invented.
 
-    Both primitives are the same ``##``-block shape (ADR-0001) — an event's
-    "name" is simply its time. Adapting here is what lets ADR-0002's promise be
-    literal: BM25, min-max fusion, the budget cut, and explain all keep working
-    untouched, and a ``[[work:current-job]]`` written inside a diary entry still
-    expands to the wiki item it points at.
-
-    (The rendered name contains ``:``, so a diary entry cannot itself be a
-    wiki-link *target* — pointing at diary entries was left open in ADR-0001.)
+    This is what lets ADR-0002's promise be literal: BM25, min-max fusion, the
+    budget cut, and explain keep working untouched, and a
+    ``[[work:current-job]]`` written inside a diary entry still expands to the
+    wiki item it points at.
     """
     return RecallItem(
-        file=DIARY_FILE,
-        name=f"{entry.date} {entry.time}",
+        file=entry.date,
+        name=entry.time,
         content=entry.content,
         owner=entry.owner,
         source_conv=entry.source_conv,
@@ -205,7 +202,7 @@ class MemoryIndex:
         """
         docs: list[tuple[RecallItem, Counter[str], int]] = []
         for entry in self.store.diary.window(*window):
-            item = _entry_as_item(entry)
+            item = as_recall_item(entry)
             tokens = tokenize(f"{item.name}\n{item.content}", use_jieba=self._use_jieba)
             docs.append((item, Counter(tokens), len(tokens)))
         return docs
@@ -312,7 +309,11 @@ class MemoryIndex:
                             source="hit",
                             tokens_est=est_tokens(f"{item.name}\n{item.content}"),
                         )
-                        for item, _, _ in sorted(diary_docs, key=lambda d: d[0].name, reverse=True)
+                        # (day, time) — sorting on the time alone would interleave
+                        # days, since a diary item's name is just ``HH:MM``.
+                        for item, _, _ in sorted(
+                            diary_docs, key=lambda d: (d[0].file, d[0].name), reverse=True
+                        )
                     ][:limit],
                     result,
                     budget_tokens,
