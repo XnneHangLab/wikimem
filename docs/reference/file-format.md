@@ -11,8 +11,9 @@ memory/
 ├── diary/                ← diary (event layer): one file per day
 │   └── 2026-07-21.md     ← source of truth
 ├── journal.jsonl         ← append-only audit log (wiki + diary)
-├── vectors-000003.npy    ← derived: vector cache ([embed] only)
-└── vectors.keys.jsonl    ← derived: cache key map ([embed] only)
+├── vectors-000003.npy    ← derived: wiki vector cache ([embed] only)
+├── vectors.keys.jsonl    ← derived: cache key map ([embed] only)
+└── diary-vectors/        ← derived: diary vector cache, same format ([embed] only)
 ```
 
 The two content primitives each get their own subdirectory — `wiki/` (state:
@@ -191,6 +192,18 @@ A legacy header without the fields keeps working and is stamped on the next
 write (ADR-0003).
  `hash` is the sha256 of the embedded text (`name\ncontent`) —
 the key that makes syncs incremental (unchanged hash = no API call).
+
+### `diary-vectors/`
+
+The same two files again, for diary entries, in their own directory. They are
+kept apart because the wiki matrix's row order **is** the in-memory document
+order, and diary is deliberately not in that list — it enters retrieval only
+through a [time window](/reference/api#the-time-gate).
+
+Diary vectors are filled in **lazily**: a window embeds the entries it actually
+reaches, once ever (content-hash keyed). A diary grows without bound and most of
+it is never recalled, so embedding all of it up front would buy vectors nobody
+asks for.
 
 ### `vectors-NNNNNN.npy`
 

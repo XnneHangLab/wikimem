@@ -203,27 +203,50 @@ class VectorCache:
         embedder: Embedder,
         *,
         batch_size: int = 64,
+        merge: bool = False,
     ) -> tuple[list[dict], np.ndarray | None]:
         """Bring the cache in line with ``entries`` ((file, name), text).
 
         Rows whose content hash is unchanged are reused without an API call;
         new/changed texts are embedded in batches. Returns keys + a read-only
-        memmap in entry order. When nothing changed, returns the existing
-        cache without writing.
+        memmap. When nothing changed, returns the existing cache without writing.
+
+        By default the cache becomes **exactly** ``entries`` — right for the wiki,
+        where the caller always passes the whole store, so a deleted item should
+        drop out. Pass ``merge=True`` when ``entries`` is only a *slice* of what
+        belongs in the cache (the diary, synced one time window at a time):
+        cached rows outside the slice are then carried over instead of dropped.
+        Without it, each window would evict the last one and "embedded once,
+        ever" would quietly become "re-embedded on every window switch".
+
+        Carried rows come first, so **row order is not entry order** under
+        ``merge`` — map by key, not by position.
         """
         old_keys, old_matrix = self.load()
-        keys = [
+        new_keys = [
             {"file": file, "name": name, "hash": content_hash(text)}
             for (file, name), text in entries
         ]
+
+        carried_keys: list[dict] = []
+        carried_rows: list[np.ndarray] = []
+        if merge and old_matrix is not None:
+            fresh = {(k["file"], k["name"]) for k in new_keys}
+            for i, key in enumerate(old_keys):
+                if (key["file"], key["name"]) not in fresh:
+                    carried_keys.append(key)
+                    # Copy now: `_close` drops the memmap this is a view onto.
+                    carried_rows.append(np.array(old_matrix[i], dtype=np.float32, copy=True))
+
+        keys = carried_keys + new_keys
         if keys == old_keys and old_matrix is not None:
             return old_keys, old_matrix
 
         old_rows = {(k["file"], k["name"], k["hash"]): i for i, k in enumerate(old_keys)}
-        rows: list[np.ndarray | None] = []
+        rows: list[np.ndarray | None] = list(carried_rows)
         pending_texts: list[str] = []
         pending_slots: list[int] = []
-        for key, ((_, _), text) in zip(keys, entries):
+        for key, ((_, _), text) in zip(new_keys, entries):
             reuse = old_rows.get((key["file"], key["name"], key["hash"]))
             if reuse is not None and old_matrix is not None:
                 rows.append(np.array(old_matrix[reuse], dtype=np.float32, copy=True))

@@ -291,3 +291,120 @@ def test_corrupt_cache_still_lets_retrieval_run(store, tmp_path):
     (tmp_path / "memory" / "vectors.keys.jsonl").write_text("{broken\n", encoding="utf-8")
     result = MemoryIndex(store, embedder=NamedEmbedder("bge-m3")).retrieve("海边")
     assert result.items  # BM25 carried it; the damaged cache just rebuilt
+
+
+# ------------------------------- ADR-0006 ③: diary vectors, fetched per window
+
+
+def test_diary_gets_semantic_recall_where_bm25_is_blind(tmp_path):
+    """The reason diary needed vectors: it is prose, and prose is BM25's blind spot."""
+    s = MemoryStore(tmp_path / "memory")
+    s.diary.append("下午去了海边，浪很大。", date="2026-07-22", time="15:00")
+    s.diary.append("修了一个 python 的 bug。", date="2026-07-22", time="20:00")
+    window = ("2026-07-22", "2026-07-22")
+
+    # "海滨度假" shares no bigram with "去了海边" — BM25 alone cannot connect them.
+    bm25 = MemoryIndex(s, use_jieba=False).retrieve("海滨度假", time_range=window)
+    assert all("海边" not in r.item.content for r in bm25.items)
+
+    fused = MemoryIndex(s, use_jieba=False, embedder=NamedEmbedder("bge-m3"))
+    result = fused.retrieve("海滨度假", time_range=window)
+    assert result.embedding_used is True
+    assert any("海边" in r.item.content for r in result.items)
+    assert result.items[0].cos_score and result.items[0].cos_score > 0
+
+
+def test_diary_vectors_are_cached_and_only_the_window_is_embedded(tmp_path):
+    """Lazy by design: you pay for the days a query reaches, once ever."""
+    s = MemoryStore(tmp_path / "memory")
+    for day in ("2026-07-20", "2026-07-21", "2026-07-22"):
+        s.diary.append("去了海边。", date=day, time="15:00")
+
+    first = NamedEmbedder("bge-m3")
+    MemoryIndex(s, embedder=first).retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
+    assert first.texts_embedded == 2  # 1 windowed entry + the query, NOT all three days
+
+    again = NamedEmbedder("bge-m3")
+    MemoryIndex(s, embedder=again).retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
+    assert again.texts_embedded == 1  # cache hit: only the query
+    assert (tmp_path / "memory" / "diary-vectors" / "vectors.keys.jsonl").exists()
+
+
+def test_diary_vectors_live_apart_from_the_wiki_cache(tmp_path):
+    """Separate cache, because diary must stay out of ``_docs`` (ADR-0006 §4)."""
+    s = MemoryStore(tmp_path / "memory")
+    s.add("preferences", "likes-the-sea", "喜欢海边。")
+    s.diary.append("去了海边。", date="2026-07-22", time="15:00")
+    index = MemoryIndex(s, embedder=NamedEmbedder("bge-m3"))
+    index.retrieve("海边", time_range=("2026-07-22", "2026-07-22"))
+
+    root = tmp_path / "memory"
+    wiki_keys = (root / "vectors.keys.jsonl").read_text(encoding="utf-8")
+    assert "likes-the-sea" in wiki_keys
+    assert "2026-07-22" not in wiki_keys  # diary never pollutes the wiki matrix
+    # …and without a window the diary still cannot surface at all
+    assert index.retrieve("海边").time_range is None
+
+
+def test_diary_falls_back_to_bm25_when_the_endpoint_dies(tmp_path):
+    s = MemoryStore(tmp_path / "memory")
+    s.diary.append("去了海边。", date="2026-07-22", time="15:00")
+    result = MemoryIndex(s, embedder=BoomEmbedder()).retrieve(
+        "海边", time_range=("2026-07-22", "2026-07-22")
+    )
+    assert result.embedding_used is False
+    assert result.items  # BM25 still answered
+
+
+def test_diary_cache_accumulates_across_windows(tmp_path):
+    """Each window must ADD to the diary cache, never evict the last one.
+
+    With plain (replace) sync semantics the cache only ever held the most recent
+    window, so switching days re-embedded entries that had already been paid for
+    — quietly turning "embedded once, ever" into "re-embedded on every switch".
+    """
+    s = MemoryStore(tmp_path / "memory")
+    for day in ("2026-07-21", "2026-07-22", "2026-07-23"):
+        s.diary.append("去了海边。", date=day, time="15:00")
+
+    embedder = NamedEmbedder("bge-m3")
+    index = MemoryIndex(s, embedder=embedder)
+
+    def ask(day):
+        index.retrieve("海边", time_range=(day, day))
+
+    ask("2026-07-21")
+    ask("2026-07-22")
+    before = embedder.texts_embedded
+    ask("2026-07-21")  # revisit: only the query should cost anything
+    assert embedder.texts_embedded == before + 1
+
+    ask("2026-07-23")
+    keys, _ = VectorCache(tmp_path / "memory" / "diary-vectors").load()
+    assert sorted(k["file"] for k in keys) == ["2026-07-21", "2026-07-22", "2026-07-23"]
+
+
+def test_merge_keeps_scores_attached_to_the_right_entries(tmp_path):
+    """Under merge, carried rows come first — so rows must map by key, not index."""
+    s = MemoryStore(tmp_path / "memory")
+    s.diary.append("修了一个 python bug。", date="2026-07-21", time="10:00")
+    s.diary.append("下午去了海边，浪很大。", date="2026-07-22", time="15:00")
+    index = MemoryIndex(s, use_jieba=False, embedder=NamedEmbedder("bge-m3"))
+
+    index.retrieve("python", time_range=("2026-07-21", "2026-07-21"))  # day 1 cached first
+    result = index.retrieve("海滨度假", time_range=("2026-07-22", "2026-07-22"))
+
+    hit = result.items[0]
+    assert "海边" in hit.item.content  # not day 1's row wearing day 2's score
+    assert hit.cos_score and hit.cos_score > 0
+
+
+def test_wiki_cache_still_replaces_not_merges(tmp_path):
+    """merge=False stays the default: the wiki caller passes the whole store,
+    so a removed item must drop out of the cache rather than linger."""
+    cache = VectorCache(tmp_path)
+    embedder = StubEmbedder()
+    entries = [(("c", "one"), "咖啡"), (("c", "two"), "海边")]
+    cache.sync(entries, embedder)
+    keys, _ = cache.sync(entries[:1], embedder)
+    assert [k["name"] for k in keys] == ["one"]
