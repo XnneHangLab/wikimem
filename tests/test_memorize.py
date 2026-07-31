@@ -7,6 +7,7 @@ refusing to swallow a malformed call.
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -158,6 +159,71 @@ def test_default_prompt_states_the_core_rules():
     assert "happened" in lowered  # events, not state
     assert "user's language" in lowered  # output language follows the turn
     assert "[]" in DIARY_PROMPT  # the nothing-to-remember escape hatch
+
+
+# ------------------------------------------------- the prompt as the docs print it
+
+_DOCS = Path(__file__).resolve().parents[1] / "docs"
+_BLOCK_RE = r"## {}\n\n(?:.*?\n\n)??```text\n(.*?)```"
+
+
+def _documented_prompt(page: str, heading: str) -> str:
+    """The ```text block under `heading` in a guide page.
+
+    Drops exactly one trailing newline: a fenced block cannot end without one,
+    so it is punctuation of the markdown, not part of the prompt.
+    """
+    text = (_DOCS / page).read_text(encoding="utf-8")
+    match = re.search(_BLOCK_RE.format(re.escape(heading)), text, re.DOTALL)
+    assert match, f"no ```text block under '## {heading}' in docs/{page}"
+    return match.group(1).removesuffix("\n")
+
+
+def test_english_guide_prints_the_shipped_prompt_verbatim():
+    """The EN guide claims to print `DIARY_PROMPT`; hold it to that, byte for byte.
+
+    It once drifted (933 vs 1049 chars) because the guide landed in one PR and a
+    reword of the constant in another. Prose cannot police that — only equality.
+    """
+    assert _documented_prompt("guide/writing-diary.md", "The reference prompt") == DIARY_PROMPT
+
+
+@pytest.mark.parametrize(
+    ("page", "heading"),
+    [
+        ("guide/writing-diary.md", "The reference prompt"),
+        ("zh/guide/writing-diary.md", "参考提示词"),
+    ],
+)
+def test_documented_prompts_survive_being_used_as_documented(diary: Diary, page: str, heading: str):
+    """Run each printed prompt through the path its own page tells you to use.
+
+    Both pages say "replace it wholesale with ``prompt=``" — so do exactly that.
+    Both blocks used to raise ``KeyError`` there, for two independent reasons:
+    a ``{conversation_turn}`` placeholder that :func:`memorize` never fills (the
+    turn is a separate user message), and an unescaped ``{ "content": … }``
+    example that ``str.format`` read as a field name. A reader copying either
+    prompt got a crash, not a diary.
+
+    The zh block is a Chinese *rewrite*, so it cannot be compared to the constant
+    — but it can still be executed, which is what catches this class of bug.
+    """
+    memorize(
+        diary,
+        "我今天换工作了！",
+        llm=FakeLLM("[]"),
+        prompt=_documented_prompt(page, heading),
+        character="伊蕾娜",
+    )
+
+
+def test_zh_prompt_carries_the_same_rules_as_the_shipped_one():
+    # A translation cannot be compared verbatim, but rule *count* still pins the
+    # two together: adding a rule to one and not the other is the likely drift.
+    zh = _documented_prompt("zh/guide/writing-diary.md", "参考提示词")
+    assert len([ln for ln in zh.splitlines() if ln.startswith("- ")]) == len(
+        [ln for ln in DIARY_PROMPT.splitlines() if ln.startswith("- ")]
+    )
 
 
 # ============================================================ mode B: agent tool

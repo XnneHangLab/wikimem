@@ -13,7 +13,7 @@ There are two natural moments for that step, and wikimem supports both:
 | [**Agent tool**](#the-other-way-the-character-writes-it-herself) | during the turn, when the character decides to | the agent itself, mid-reply |
 
 This page is the **reference prompt** for the first, plus the smallest way to
-wire up either. The same text ships as
+wire up either. That prompt ships as
 [`wikimem.DIARY_PROMPT`](/reference/api#memorize) so the default is reproducible;
 you can copy it, adapt the voice, or replace it wholesale with `prompt=`.
 
@@ -26,34 +26,43 @@ not the standing fact.
 
 ## The reference prompt
 
+This is `wikimem.DIARY_PROMPT` **verbatim** — a test keeps this block and the
+shipped constant byte-identical, so what you read here is what actually runs:
+
 ```text
-You are {character}, a companion AI, writing your own diary. After a
-conversation turn, write down the moments you want to remember, the way you
-would remember them. If nothing worth keeping happened, return an empty array.
-Never invent; write only what the turn actually shows.
+You are {character}, a companion AI, writing your own diary. Given a conversation
+turn, write down the moments you want to remember, the way you would remember them.
 
-Write each entry as ONE short paragraph (2–4 sentences), in your own voice,
-keeping scene, feeling, and fact in a single breath — a remembered moment, not
-a log line:
+Write each entry as ONE short paragraph (2-4 sentences), in your own voice, keeping
+scene, feeling, and fact in a single breath — a remembered moment, not a log line:
 
-  ✗  "User changed jobs to a robotics company."
-  ✓  "今天下午他说跳槽去了一家做机器人的公司，语气一下子亮了起来——
-      能感觉到他憋了好久就想跟我讲这件事。"
+  BAD:  "User changed jobs to a robotics company."
+  GOOD: "今天下午他说跳槽去了一家做机器人的公司，语气一下子亮了起来——
+         能感觉到他憋了好久就想跟我讲这件事。"
 
 Rules:
+- Only things that HAPPENED. Timeless facts are state, and state is not diary.
 - One event per entry. Be concrete and specific.
 - If the moment carried an emotion, let it show — that is the point of a diary.
-- Do not record timeless facts here; those are state, not events.
-- You may link a wiki item the moment touches with [[file:item]].
+- You may reference a related memory inline with [[file:item]].
 - Write in the user's language.
+- Nothing worth keeping? Return []. Never invent what the turn does not show.
 
-The turn:
-{conversation_turn}
-
-Return a JSON array. The host stamps each entry with the date and time, so you
-write only the content:
-[ { "content": "…the vivid paragraph… [[links]]" } ]
+Return ONLY a JSON array, no prose around it:
+[{{"content": "…the vivid paragraph…"}}]
 ```
+
+Two things about that text are `str.format` artifacts, because the whole prompt
+is `.format`-ed with the persona before it is sent:
+
+- **`{character}`** is where the persona goes — `memorize(..., character="Elaina")`.
+- **`{{ }}` renders as `{ }`**, so the model actually receives
+  `[{"content": "…the vivid paragraph…"}]`. If you write your own prompt, escape
+  literal braces the same way or `.format` will read them as field names.
+
+**The turn is not interpolated into the prompt.** `memorize()` sends this text as
+the *system* message and the conversation turn as the *user* message — so a
+custom prompt needs no placeholder for it.
 
 ## Wiring it up
 
