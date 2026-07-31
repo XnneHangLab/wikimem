@@ -92,11 +92,19 @@ Pre-alpha, built milestone by milestone
   wiki-link parsing, `journal.jsonl`, atomic writes
 - M2 ✅ — retrieval: in-memory BM25 (char-bigram fallback, `[zh]` extra
   for jieba), one-hop wiki-link expansion, token budget, explain
-- **M3 (this)** — optional embedding fusion (`[embed]` extra): content-hash
+- M3 ✅ — optional embedding fusion (`[embed]` extra): content-hash
   vector cache (versioned `.npy` + plain-text keys), memmap tiers with binary
   quantization above 10k items, pluggable `VectorIndex` port, silent BM25
   fallback when the endpoint is down
-- M4 — CLI: `ls / show / grep / explain / graph`
+- M4 ✅ — CLI: `ls / show / grep / explain / graph`
+- M5 ✅ — diary + time gate: append-only `diary/YYYY-MM-DD.md` event files, a
+  stdlib parser for relative time expressions, and one ranked list where diary
+  and wiki items compete on the same scale
+- M6 — serve (HTTP + JSON thin shell): designed, deliberately not built yet
+
+Past M5 the work is tracked **per decision, not per milestone** — see the
+[ADR index](docs/adr/README.md), where every decision carries its own
+implementation status.
 
 ## Quick start
 
