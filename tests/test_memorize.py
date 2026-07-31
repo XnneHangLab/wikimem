@@ -302,6 +302,28 @@ def test_extra_argument_is_refused_rather_than_dropped(diary: Diary):
     assert diary.dates() == []
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        {1: "foo"},  # join() would hit a non-str
+        {1: "foo", "date": "yesterday"},  # sorted() would compare int to str
+        {"content": "ok", 2: "x"},  # valid content, junk key alongside
+    ],
+)
+def test_non_string_keys_still_raise_valueerror(diary: Diary, args: dict):
+    """Every malformed call raises ``ValueError`` — including this one.
+
+    ``args`` may be a host-built dict, so its keys are not guaranteed to be
+    strings the way JSON object keys are. Before this was pinned, such a dict
+    reached ``sorted()`` / ``join()`` and raised **TypeError**, which sails past
+    the host's ``except ValueError`` and kills the agent loop — precisely the
+    failure the single-exception-type rule exists to prevent.
+    """
+    with pytest.raises(ValueError, match="unexpected argument"):
+        handle_diary_tool(diary, args)
+    assert diary.dates() == []
+
+
 def test_blank_content_is_refused_by_append(diary: Diary):
     # Diary.append already owns this rule; the handler must not duplicate or
     # swallow it.

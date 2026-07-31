@@ -245,6 +245,17 @@ def handle_diary_tool(
     says the character tried to write something down and it did not land — the
     exact silent failure worth refusing to have. Hand the message back to the
     agent as the tool result and it can correct itself in the same turn.
+
+    Every malformed ``args`` raises ``ValueError`` — never a second exception
+    type — so one ``except ValueError`` in the agent loop covers all of them::
+
+        try:
+            entry = handle_diary_tool(store.diary, call.function.arguments)
+        except ValueError as exc:
+            tool_result = str(exc)      # the agent reads this and retries
+
+    (A mistyped ``**append_kwargs`` still raises ``TypeError``, but that is the
+    *host's* own bug, not the model's, and should surface as one.)
     """
     if isinstance(args, str):
         try:
@@ -267,7 +278,13 @@ def handle_diary_tool(
     # The schema declares exactly one property and forbids others, so an extra
     # key means the model believes it set something we are about to drop — a
     # date it "remembered" would silently file the entry on the wrong day.
-    unexpected = sorted(set(parsed) - {"content"})
+    #
+    # ``str(k)`` before sorting/joining is load-bearing, not defensive noise: a
+    # host-built dict may hold non-string keys, and then ``sorted`` raises
+    # TypeError on mixed types while ``join`` raises it on any non-str. Either
+    # would escape the caller's ``except ValueError`` and take the agent loop
+    # down — the one failure this function exists to prevent.
+    unexpected = sorted(str(k) for k in set(parsed) - {"content"})
     if unexpected:
         raise ValueError(
             f"diary tool call has unexpected argument(s): {', '.join(unexpected)}; "
