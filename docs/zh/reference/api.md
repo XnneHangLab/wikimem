@@ -144,6 +144,34 @@ class LLM(Protocol):
 随包提供的参考提示词（英文指令；条目用**对话本身**的语言书写）。用 `prompt=`
 按次覆盖 —— 正因为有这一个参数，框架只需发一份默认值，而不必维护「每语言一份」的矩阵。
 
+### 日记工具
+
+```python
+diary_tool() -> dict                  # append_diary(content) 的 function-call schema
+handle_diary_tool(
+    diary, args, **append_kwargs,     # args：JSON 字符串或已解析的 dict
+) -> DiaryItem
+```
+
+memorize 的第二种模式（ADR-0005）：不在一轮之后抽取，而是由角色**在这一轮当中**
+调用工具。把 `diary_tool()` 注册进你的 Agent，把 `append_diary` 的调用路由给
+`handle_diary_tool()`。
+
+**零 LLM 调用** —— 内容是 Agent 自己写的，handler 只做校验与落盘。schema 里
+**只有 `content`**：模型没有时钟，所以 `date` / `time` / `owner` 由宿主以关键字
+传入，并透传给 [`Diary.append`](#diary)。
+
+**它抛异常，`memorize()` 不抛。** JSON 不合法、不是对象、`content` 缺失或不是
+字符串、出现 `content` 以外的参数，都会抛 `ValueError`。`memorize()` 返回 `[]`
+意思是"没什么值得记的"；而一次坏掉的 tool call 意味着角色**试图**记下什么却没
+落地 —— 所以异常消息本身就是写来直接回传给 Agent 当 tool 结果的。完整的 Agent
+循环见[《写日记》](/zh/guide/writing-diary#另一种写法-角色自己动手)。
+
+### `DIARY_TOOL_DESCRIPTION`
+
+该工具的 description，与 `DIARY_PROMPT` 共用同一套文风规则 —— 一份配方服务两种
+模式，两边不会漂移成两种口吻。
+
 ## 命名助手
 
 ```python

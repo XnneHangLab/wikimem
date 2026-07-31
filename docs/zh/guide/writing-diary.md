@@ -5,7 +5,14 @@
 （[`Diary.append`](/zh/reference/api)），从不替你写。写什么、怎么写，是你
 宿主的 memorize 环节 —— 一次由你掌控的 LLM 调用。
 
-本页是那次调用的**参考提示词**，外加最省事的接法。英文版同一份文案已作为
+这一环节有**两个自然的时机**，wikimem 两个都支持：
+
+| | 什么时候跑 | 谁写下这条 |
+|---|---|---|
+| [**后台抽取**](#接线) | 一轮结束之后，不在关键路径上 | **你**发起的那次 LLM 调用，带提示词 |
+| [**Agent 工具**](#另一种写法-角色自己动手) | 就在这一轮里，角色决定要记 | Agent 自己，边回话边写 |
+
+本页是前者的**参考提示词**，外加两种接法里最省事的那种。英文版同一份文案已作为
 [`wikimem.DIARY_PROMPT`](/zh/reference/api#memorize) 随包提供，默认值因此可复现；你可以
 复制、改口吻，或用 `prompt=` 整份替换（下面「换一种语言」）。
 
@@ -87,6 +94,84 @@ memorize(store.diary, turn, llm=MyLLM(), prompt=上面那份中文提示词)
 `memorize()` 与 embedding 一样 **fail-open**：会剥掉 ``` 代码围栏、接受单个对象；
 散文或坏 JSON 一律返回 `[]` 而不是抛异常 —— 一次糟糕的回复不该弄挂你的后台任务。
 `[]` 同时也是**正常**结果：大多数轮次本就没什么值得记，提示词要求宁可返回空也不要编。
+
+## 另一种写法：角色自己动手
+
+`memorize()` 是**回头看**：一轮结束之后，从对话里抽。另一种形状是角色**在对话
+当中**决定留下点什么 —— "等等，这个我想记住" —— 并且当场说出来。那就是一次
+tool call，而这个 tool 由 wikimem 提供：
+
+```python
+from wikimem import MemoryStore, diary_tool, handle_diary_tool
+
+store = MemoryStore("memory/")
+tools = [diary_tool()]              # 和 Agent 自己的其它工具注册在一起
+
+reply = client.chat.completions.create(model="gpt-4o", messages=messages, tools=tools)
+
+for call in reply.choices[0].message.tool_calls or []:
+    if call.function.name == "append_diary":
+        entry = handle_diary_tool(
+            store.diary,
+            call.function.arguments,   # 原始 JSON 字符串就行，dict 也接受
+            owner="user:xnne",         # 溯源与时间仍然归你
+            source_conv=conv_id,
+        )
+        messages.append({
+            "role": "tool", "tool_call_id": call.id,
+            "content": f"saved to {entry.date} {entry.time}",
+        })
+```
+
+**`handle_diary_tool()` 里没有任何 LLM 调用。** Agent 本身就是那个模型 —— 那段
+文字是它在回话时自己写的，handler 只做校验与落盘。这就是"在对话中间记一笔"却
+不多花一次调用的原因，也是角色说"这条我记下来了"时，那句话是**真的**的原因。
+
+工具的 description 与 `DIARY_PROMPT` 用的是**同一套文风规则**（一条一事件、
+2–4 句、只记发生过的事、用用户的语言）—— 一份配方服务两种模式，两边才不会写出
+两种口吻。
+
+### 模型写**什么**，你来 stamp **什么时候**
+
+schema 里只有一个参数 `content`。没有 `date`、没有 `time`、没有 `owner`。模型没
+有时钟，它给出的日期只能是猜的 —— 而猜错的那条会落在错误的一天，且看上去毫无破
+绽。这些一律由你以关键字传给 `handle_diary_tool()`，与 `memorize()` 的分工一致。
+
+### 它**抛异常**，而 `memorize()` fail-open
+
+刻意相反，因为"空"在两边意味着相反的事：
+
+- `memorize()` 返回 `[]` = "这一轮没什么值得记的" —— 正常、健康的结果。
+- 一次坏掉的 **tool call** = 角色刚宣布她要把这件事记下来，而它没落地。这里最糟
+  的结果恰恰是"悄悄成功"。
+
+所以参数不合法时会抛 `ValueError`，消息本身就是写给 Agent 看的、可以直接当作
+tool 结果回传：
+
+```text
+diary tool call has unexpected argument(s): date; only 'content' is accepted
+(the host stamps time and provenance)
+```
+
+Agent 能在同一轮里据此自我纠正。用 `try/except ValueError` 包住，把 `str(exc)`
+作为该工具的返回内容即可。
+
+### provider 的 tool 形状不一样时
+
+`diary_tool()` 返回的是 `chat_completion` 的 `tools=[…]` 形状 —— 与 `LLM` 端口
+同一个"只认所有人都会说的那一种协议"的选择。若你的不是这种，零件都在：
+
+```python
+t = diary_tool()["function"]
+anthropic_tool = {
+    "name": t["name"],
+    "description": t["description"],
+    "input_schema": t["parameters"],
+}
+```
+
+每次调用都返回一个全新的 dict，所以你为自己的 Agent 改个工具名、收紧一下
+description，都不会漏到别人那里去。
 
 ## 给宿主的注记
 
