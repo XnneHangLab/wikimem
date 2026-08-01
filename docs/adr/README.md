@@ -22,7 +22,7 @@ wikimem 的架构决策记录（Architecture Decision Records）。
 | [0002](./0002-time-range-retrieval.md)  | 时间检索 — time_range 门控 + 正则快通道，不做第三路融合 | Accepted | ⚠️ 门控已落地 [#26](https://github.com/XnneHangLab/wikimem/pull/26) [#27](https://github.com/XnneHangLab/wikimem/pull/27) [#31](https://github.com/XnneHangLab/wikimem/pull/31)；§6 recency 衰减项未做 |
 | [0003](./0003-vectors-cache-metadata.md) | 向量缓存记录 model/dim — 失配警告并降级，而非报错重建   | Accepted | ✅ [#33](https://github.com/XnneHangLab/wikimem/pull/33) |
 | [0004](./0004-api-contract-thin-shells.md) | 接口契约 — Python API 是契约，CLI 与 serve 都是薄壳     | Accepted | ⚠️ CLI 已落地 [#12](https://github.com/XnneHangLab/wikimem/pull/12)；serve 暂缓 |
-| [0005](./0005-memorize-injected-llm.md) | memorize — 注入式 LLM，两种宿主驱动写入（后台抽取 / Agent 工具） | Accepted | ⚠️ 模式 A 已落地 [#24](https://github.com/XnneHangLab/wikimem/pull/24)；模式 B 未做 |
+| [0005](./0005-memorize-injected-llm.md) | memorize — 注入式 LLM，两种宿主驱动写入（后台抽取 / Agent 工具） | Accepted | ✅ 模式 A [#24](https://github.com/XnneHangLab/wikimem/pull/24)、模式 B [#36](https://github.com/XnneHangLab/wikimem/pull/36) |
 | [0006](./0006-recallfile-read-unified-write-split.md) | RecallFile / RecallItem — 读侧统一，写侧分立（含命名收敛、日记向量化、jsonl 不迁 sqlite） | Accepted | ⚠️ ①②③ 已落地 [#29](https://github.com/XnneHangLab/wikimem/pull/29) [#30](https://github.com/XnneHangLab/wikimem/pull/30) [#32](https://github.com/XnneHangLab/wikimem/pull/32) [#34](https://github.com/XnneHangLab/wikimem/pull/34)；④ 待 bench |
 
 > 0001 / 0002 的完整设计讨论（三种时间融合方案的对比分析）见博客《RRF vs Hybrid Search》（nyakku.moe，撰写中）。

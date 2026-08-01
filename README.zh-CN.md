@@ -84,10 +84,16 @@ Pre-alpha，按里程碑逐步构建
   wiki-link 解析、`journal.jsonl`、原子写入
 - M2 ✅ —— 检索：内存 BM25（字符 bigram 兜底，`[zh]` extra 提供
   jieba 分词）、一跳 wiki-link 展开、token 预算、explain
-- **M3（当前）** —— 可选 embedding 融合（`[embed]` extra）：内容哈希向量缓存
+- M3 ✅ —— 可选 embedding 融合（`[embed]` extra）：内容哈希向量缓存
   （版本化 `.npy` + 明文 keys）、memmap 分层（1 万条以上二值量化）、可插拔
   `VectorIndex` 端口、端点不可用时静默回退纯 BM25
-- M4 —— CLI：`ls / show / grep / explain / graph`
+- M4 ✅ —— CLI：`ls / show / grep / explain / graph`
+- M5 ✅ —— 日记 + 时间门控：只追加的 `diary/YYYY-MM-DD.md` 事件文件、纯 stdlib
+  的相对时间表达解析器，以及日记与 wiki 在同一把尺子上竞争的那一份排序
+- M6 —— serve（HTTP + JSON 薄壳）：设计已定，刻意尚未动工
+
+M5 之后的工作**按决策跟踪，不按里程碑** —— 见 [ADR 索引](docs/adr/README.md)，
+每条决策各自带着它的实施状态。
 
 ## 快速上手
 
